@@ -7,7 +7,7 @@ import { summarizeResults, SummarizeResultsOutput } from "@/ai/flows/summarize-r
 
 const processInformationInputSchema = z.object({
   query: z.string().min(1, "Query is required."),
-  rawInformation: z.string().min(1, "Raw information is required."),
+  // rawInformation is removed
 });
 
 export type ProcessInformationInput = z.infer<typeof processInformationInputSchema>;
@@ -27,32 +27,30 @@ export async function processInformation(
     return { error: validatedInput.error.errors.map(e => e.message).join(", ") };
   }
 
-  const { query, rawInformation } = validatedInput.data;
+  // const { query } = validatedInput.data; // Query is available if needed for future expansion
 
-  // Split raw information by newlines for filterAndRankResults
-  // Filter out empty lines
-  const informationArray = rawInformation.split(/\r?\n/).filter(line => line.trim() !== "");
-
-  if (informationArray.length === 0) {
-    return { error: "Raw information must contain at least one non-empty line." };
-  }
-
+  // Since rawInformation input is removed, we no longer call filterAndRankResults or summarizeResults here.
+  // The UI will not display these sections if the data is not present.
+  // This function could be expanded in the future to use the query for other purposes (e.g., fetching data).
   try {
-    const rankedResults = await filterAndRankResults({
-      query,
-      information: informationArray,
-    });
+    // The following AI calls depended on rawInformation, which is no longer provided.
+    // const rankedResults = await filterAndRankResults({
+    //   query,
+    //   information: informationArray,
+    // });
 
-    const summary = await summarizeResults({
-      query,
-      results: rawInformation, // Summarize the original full text
-    });
+    // const summary = await summarizeResults({
+    //   query,
+    //   results: rawInformation, 
+    // });
 
-    return { rankedResults, summary };
+    // Return an empty result for rankedResults and summary as they are no longer computed here.
+    return {
+      // rankedResults: undefined, // Implicitly undefined
+      // summary: undefined,       // Implicitly undefined
+    };
   } catch (e) {
-    console.error("Error processing information with AI:", e);
-    // It's good practice to not expose raw error messages to the client.
-    // Log the detailed error on the server and return a generic message.
-    return { error: "An error occurred while processing your request with AI. Please check server logs." };
+    console.error("Error processing information:", e);
+    return { error: "An error occurred while processing your request. Please check server logs." };
   }
 }

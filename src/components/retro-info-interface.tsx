@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+// Textarea is no longer used
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
   query: z.string().min(3, { message: "Query must be at least 3 characters." }),
-  rawInformation: z.string().min(10, { message: "Raw information must be at least 10 characters." }),
+  // rawInformation is removed
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -31,7 +31,7 @@ export default function RetroInfoInterface() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       query: "",
-      rawInformation: "",
+      // rawInformation is removed
     },
   });
 
@@ -40,7 +40,8 @@ export default function RetroInfoInterface() {
     setResult(null); // Clear previous results
 
     try {
-      const response = await processInformation(values);
+      // Pass only the query
+      const response = await processInformation({ query: values.query });
       setResult(response);
       if (response.error) {
         toast({
@@ -78,7 +79,7 @@ export default function RetroInfoInterface() {
       <Card className="border-primary shadow-lg shadow-primary/20">
         <CardHeader>
           <CardTitle className="text-2xl flex items-center gap-2"><Search className="h-6 w-6 text-accent" /> Input Your Data</CardTitle>
-          <CardDescription>Provide a query and raw information to filter, rank, and summarize.</CardDescription>
+          <CardDescription>Provide a query to discover information.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -101,26 +102,7 @@ export default function RetroInfoInterface() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="rawInformation"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel htmlFor="rawInformation" className="text-lg">Raw Information</FormLabel>
-                    <FormDescription>Paste the text data you want to process. Each line can be treated as a separate snippet.</FormDescription>
-                    <FormControl>
-                      <Textarea
-                        id="rawInformation"
-                        placeholder="Paste your raw text data here..."
-                        rows={10}
-                        {...field}
-                        className="text-base leading-relaxed"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* Removed FormField for rawInformation */}
               <Button type="submit" disabled={isLoading} className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg py-6">
                 {isLoading ? (
                   <>
