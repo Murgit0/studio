@@ -18,7 +18,7 @@ type GenerateAnswerInput = z.infer<typeof GenerateAnswerInputSchema>;
 
 // Internal schema for the flow's output structure, not exported
 const GenerateAnswerOutputSchema = z.object({
-  answer: z.string().describe('A comprehensive and in-depth answer to the user query.'),
+  answer: z.string().describe('A balanced and informative answer to the user query, without references.'),
 });
 // Type for internal use, inferred from the internal schema
 type GenerateAnswerOutput = z.infer<typeof GenerateAnswerOutputSchema>;
@@ -32,10 +32,10 @@ const prompt = ai.definePrompt({
   name: 'generateAnswerPrompt',
   input: {schema: GenerateAnswerInputSchema},
   output: {schema: GenerateAnswerOutputSchema},
-  prompt: `You are an AI assistant for Xpoxial Search. Your task is to provide a detailed, comprehensive, and in-depth answer to the user's query.
-If the query is a question, answer it thoroughly, exploring different facets and providing context.
-If it's a topic, provide a comprehensive summary, covering key aspects, implications, and relevant details.
-Focus on being highly informative, insightful, and exhaustive, while maintaining clarity.
+  prompt: `You are an AI assistant for Xpoxial Search. Your task is to provide a well-balanced and informative answer to the user's query.
+The answer should be comprehensive enough to be useful, but concise and easy to understand.
+Avoid overly technical jargon unless necessary for the query, and explain it if used.
+Do not include any references, citations, or links in your answer.
 
 User Query: {{{query}}}
 `,
@@ -52,4 +52,3 @@ const generateAnswerFlow = ai.defineFlow(
     return output!;
   }
 );
-

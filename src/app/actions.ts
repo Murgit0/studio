@@ -13,7 +13,7 @@ const GenerateAnswerInputSchema = z.object({
 export type GenerateAnswerInput = z.infer<typeof GenerateAnswerInputSchema>;
 
 const GenerateAnswerOutputSchema = z.object({
-  answer: z.string().describe('A concise, helpful answer to the user query.'),
+  answer: z.string().describe('A balanced and informative answer to the user query, without references.'),
 });
 export type GenerateAnswerOutput = z.infer<typeof GenerateAnswerOutputSchema>;
 // --- End Schemas and Types from generate-answer-flow.ts ---
@@ -27,7 +27,7 @@ export type GenerateSearchResultsInput = z.infer<typeof GenerateSearchResultsInp
 const SearchResultItemSchema = z.object({
   title: z.string().describe('A plausible title for a search result.'),
   snippet: z.string().describe('A short, descriptive snippet for the search result.'),
-  url: z.string().describe('A plausible, but not necessarily real, URL for the search result (e.g., https://example.com/topic).'), // Changed from z.string().url()
+  url: z.string().describe('A plausible, but not necessarily real, URL for the search result (e.g., https://example.com/topic).'),
 });
 
 const GenerateSearchResultsOutputSchema = z.object({
