@@ -6,7 +6,7 @@ import { z } from "zod";
 import { generateAnswer } from "@/ai/flows/generate-answer-flow";
 import { generateSearchResults } from "@/ai/flows/generate-search-results-flow.ts";
 
-// --- Schemas and Types previously in generate-answer-flow.ts ---
+// --- Schemas and Types for generate-answer-flow ---
 const GenerateAnswerInputSchema = z.object({
   query: z.string().describe('The user query for which to generate an answer.'),
 });
@@ -18,7 +18,7 @@ const GenerateAnswerOutputSchema = z.object({
 export type GenerateAnswerOutput = z.infer<typeof GenerateAnswerOutputSchema>;
 // --- End Schemas and Types from generate-answer-flow.ts ---
 
-// --- Schemas and Types previously in generate-search-results-flow.ts ---
+// --- Schemas and Types for generate-search-results-flow ---
 const GenerateSearchResultsInputSchema = z.object({
   query: z.string().describe('The user query for which to generate search results.'),
 });
@@ -27,7 +27,7 @@ export type GenerateSearchResultsInput = z.infer<typeof GenerateSearchResultsInp
 const SearchResultItemSchema = z.object({
   title: z.string().describe('A plausible title for a search result.'),
   snippet: z.string().describe('A short, descriptive snippet for the search result.'),
-  url: z.string().url().describe('A plausible, but not necessarily real, URL for the search result (e.g., https://example.com/topic).'),
+  url: z.string().describe('A plausible, but not necessarily real, URL for the search result (e.g., https://example.com/topic).'), // Changed from z.string().url()
 });
 
 const GenerateSearchResultsOutputSchema = z.object({
