@@ -31,7 +31,7 @@ const SearchResultItemSchema = z.object({
 });
 
 const GenerateSearchResultsOutputSchema = z.object({
-  results: z.array(SearchResultItemSchema).max(5).describe('An array of up to 5 simulated search results.'),
+  results: z.array(SearchResultItemSchema).max(10).describe('An array of up to 10 simulated search results.'),
 });
 export type GenerateSearchResultsOutput = z.infer<typeof GenerateSearchResultsOutputSchema>;
 // --- End Schemas and Types from generate-search-results-flow.ts ---
