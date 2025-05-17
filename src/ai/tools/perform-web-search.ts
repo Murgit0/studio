@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A tool for performing web searches.
@@ -23,6 +24,9 @@ const WebSearchResultItemSchema = z.object({
   link: z.string().describe('The URL of the search result.'),
   snippet: z.string().describe('A brief snippet or description of the search result.'),
 });
+// Type for internal use, not exported from 'use server' module
+type WebSearchResultItem = z.infer<typeof WebSearchResultItemSchema>;
+
 
 // Schema for the tool's output - internal
 const PerformWebSearchOutputSchema = z.object({
@@ -42,72 +46,69 @@ export async function performWebSearch(input: PerformWebSearchInput): Promise<Pe
 // It contains the core logic for fetching search results.
 async function performWebSearchToolHandler(input: PerformWebSearchInput): Promise<PerformWebSearchOutput> {
   const apiKey = process.env.SEARCH_API_KEY;
+  const searchEngineId = process.env.SEARCH_ENGINE_ID || 'YOUR_SEARCH_ENGINE_ID'; // You MUST replace YOUR_SEARCH_ENGINE_ID or set SEARCH_ENGINE_ID env var
 
   if (!apiKey) {
     console.warn('SEARCH_API_KEY is not set. Returning mock search results.');
-    // Fallback to mock data if API key is missing
-    return {
-      results: [
-        {
-          title: 'Mock Result 1 for: ' + input.query,
-          link: 'https://example.com/mock1',
-          snippet: 'This is a mock search result snippet. Replace with a real API call.',
-        },
-        {
-          title: 'Mock Result 2 for: ' + input.query,
-          link: 'https://example.com/mock2',
-          snippet: 'Another mock snippet. Implement your chosen Search API here.',
-        },
-      ],
-    };
+    return getMockSearchResults(input.query);
   }
 
-  // --- !!! IMPORTANT: REPLACE MOCK DATA WITH REAL API CALL !!! ---
-  // Below is where you would integrate with your chosen Search API
-  // For example, using Google Custom Search JSON API:
-  /*
+  if (searchEngineId === 'YOUR_SEARCH_ENGINE_ID') {
+    console.warn('Search Engine ID (cx) is not configured. Please set YOUR_SEARCH_ENGINE_ID in the code or SEARCH_ENGINE_ID environment variable. Returning mock search results.');
+    return getMockSearchResults(input.query);
+  }
+
   try {
     const response = await fetch(
-      `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=YOUR_SEARCH_ENGINE_ID&q=${encodeURIComponent(input.query)}`
+      `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${searchEngineId}&q=${encodeURIComponent(input.query)}`
     );
+
     if (!response.ok) {
-      throw new Error(`Search API request failed with status ${response.status}`);
+      const errorData = await response.text();
+      console.error(`Search API request failed with status ${response.status}: ${errorData}`);
+      throw new Error(`Search API request failed with status ${response.status}. Check server logs for details.`);
     }
+
     const data = await response.json();
-    const results = data.items?.map((item: any) => ({
+    const results: WebSearchResultItem[] = data.items?.map((item: any) => ({
       title: item.title,
       link: item.link,
       snippet: item.snippet,
     })) || [];
+    
     return { results };
+
   } catch (error) {
     console.error('Error fetching real search results:', error);
-    throw new Error('Failed to fetch real search results.');
+    // Fallback to mock data on error
+    console.warn('Falling back to mock search results due to an error.');
+    return getMockSearchResults(input.query);
   }
-  */
-  // --- END OF REAL API CALL PLACEHOLDER ---
+}
 
-  console.log(`Simulating search for: ${input.query} using placeholder.`);
+function getMockSearchResults(query: string): PerformWebSearchOutput {
+  // Fallback to mock data if API key is missing or API call fails
   return {
     results: [
       {
-        title: `Example: All About "${input.query}"`,
-        link: `https://en.wikipedia.org/wiki/${encodeURIComponent(input.query.replace(/\s+/g, '_'))}`,
-        snippet: `Learn more about ${input.query} from various sources. This is a simulated result.`,
+        title: 'Mock Result 1 for: ' + query,
+        link: 'https://example.com/mock1',
+        snippet: 'This is a mock search result snippet. Configure your Search API for real results.',
       },
       {
-        title: `News and Updates on "${input.query}"`,
-        link: `https://news.google.com/search?q=${encodeURIComponent(input.query)}`,
-        snippet: `Stay updated with the latest news regarding ${input.query}. (Simulated link)`,
+        title: 'Mock Result 2 for: ' + query,
+        link: 'https://example.com/mock2',
+        snippet: 'Another mock snippet. Implement your chosen Search API here.',
       },
       {
-        title: `Discussions about "${input.query}" on Forums`,
-        link: `https://www.reddit.com/search/?q=${encodeURIComponent(input.query)}`,
-        snippet: `See what people are saying about ${input.query}. (Simulated link)`,
+        title: `More about "${query}"`,
+        link: `https://en.wikipedia.org/wiki/${encodeURIComponent(query.replace(/\s+/g, '_'))}`,
+        snippet: `This is a mock Wikipedia link for ${query}. Real results require API configuration.`,
       }
     ],
   };
 }
+
 
 export const performWebSearchTool = ai.defineTool(
   {
