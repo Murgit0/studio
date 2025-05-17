@@ -102,7 +102,13 @@
   }
   body {
     @apply bg-background text-foreground;
-    /* Removed explicit font-family to allow Geist_Mono to take precedence via class */
+    --grid-color: hsl(var(--foreground) / 0.15); /* Subtle green grid lines */
+    --grid-size: 2rem; /* Size of the grid cells */
+    background-image:
+      linear-gradient(to right, var(--grid-color) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px);
+    background-size: var(--grid-size) var(--grid-size);
+    min-height: 100vh; /* Ensure background covers full viewport height */
   }
 }
 
