@@ -1,3 +1,4 @@
+
 // src/components/retro-info-interface.tsx
 "use client";
 
@@ -12,6 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { processSearchQuery, type SearchActionResult } from "@/app/actions";
 import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import AuthButton from "./auth-button"; // Added AuthButton import
 
 const formSchema = z.object({
   query: z.string().min(3, { message: "Query must be at least 3 characters." }),
@@ -60,7 +62,7 @@ export default function RetroInfoInterface() {
     } catch (error) {
       console.error("Submission error:", error);
       const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
-      setSearchResult({ error: errorMessage }); // Ensure error is set on the state for display
+      setSearchResult({ error: errorMessage }); 
       toast({
         variant: "destructive",
         title: "Submission Error",
@@ -73,8 +75,13 @@ export default function RetroInfoInterface() {
 
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-8">
-      <header className="text-center">
-        <h1 className="text-5xl font-bold text-primary mb-2">Xpoxial Search</h1>
+      <header className="flex justify-between items-center text-center">
+        <div className="flex-1"> {/* This div helps center the title when AuthButton is present */}
+          <h1 className="text-5xl font-bold text-primary mb-2">Xpoxial Search</h1>
+        </div>
+        <div className="ml-auto"> {/* AuthButton aligned to the right */}
+          <AuthButton />
+        </div>
       </header>
 
       <Card className="border-primary shadow-lg shadow-primary/20">
@@ -142,7 +149,6 @@ export default function RetroInfoInterface() {
 
       {searchResult && !searchResult.error && !isLoading && (
         <div className="space-y-8">
-          {/* AI Answer Box */}
           {searchResult.answer && searchResult.answer.answer && (
             <Card className="border-accent shadow-lg shadow-accent/20">
               <CardHeader>
@@ -154,7 +160,6 @@ export default function RetroInfoInterface() {
             </Card>
           )}
 
-          {/* Search Results */}
           {searchResult.searchResults && searchResult.searchResults.results && searchResult.searchResults.results.length > 0 && (
             <Card className="border-primary shadow-lg shadow-primary/20">
               <CardHeader>
@@ -186,7 +191,6 @@ export default function RetroInfoInterface() {
             </Card>
           )}
           
-          {/* Fallback for no content if no error but also no answer and no results */}
           {!isLoading && !searchResult.error && !searchResult.answer?.answer && (!searchResult.searchResults?.results || searchResult.searchResults.results.length === 0) && (
              <Card className="border-primary shadow-lg shadow-primary/20">
               <CardHeader>
