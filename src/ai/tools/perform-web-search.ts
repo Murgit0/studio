@@ -46,15 +46,21 @@ export async function performWebSearch(input: PerformWebSearchInput): Promise<Pe
 // It contains the core logic for fetching search results.
 async function performWebSearchToolHandler(input: PerformWebSearchInput): Promise<PerformWebSearchOutput> {
   const apiKey = process.env.SEARCH_API_KEY;
-  const searchEngineId = process.env.SEARCH_ENGINE_ID || 'YOUR_SEARCH_ENGINE_ID'; // You MUST replace YOUR_SEARCH_ENGINE_ID or set SEARCH_ENGINE_ID env var
+  const searchEngineId = process.env.SEARCH_ENGINE_ID; // Read directly from environment
 
   if (!apiKey) {
-    console.warn('SEARCH_API_KEY is not set. Returning mock search results.');
+    console.warn('SEARCH_API_KEY environment variable is not set. For production environments like Netlify, this must be configured in your site settings. Returning mock search results.');
     return getMockSearchResults(input.query);
   }
 
-  if (searchEngineId === 'YOUR_SEARCH_ENGINE_ID') {
-    console.warn('Search Engine ID (cx) is not configured. Please set YOUR_SEARCH_ENGINE_ID in the code or SEARCH_ENGINE_ID environment variable. Returning mock search results.');
+  // Check if searchEngineId is missing or still the placeholder value
+  // The placeholder 'YOUR_SEARCH_ENGINE_ID' should not be used in production.
+  if (!searchEngineId || searchEngineId === 'YOUR_SEARCH_ENGINE_ID') {
+    let warningMessage = 'SEARCH_ENGINE_ID environment variable is not set.';
+    if (searchEngineId === 'YOUR_SEARCH_ENGINE_ID') {
+      warningMessage = 'SEARCH_ENGINE_ID environment variable is using a placeholder value "YOUR_SEARCH_ENGINE_ID".';
+    }
+    console.warn(`${warningMessage} For production environments like Netlify, a valid Search Engine ID must be configured in your site settings. Returning mock search results.`);
     return getMockSearchResults(input.query);
   }
 
@@ -66,7 +72,7 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
     if (!response.ok) {
       const errorData = await response.text();
       console.error(`Search API request failed with status ${response.status}: ${errorData}`);
-      throw new Error(`Search API request failed with status ${response.status}. Check server logs for details.`);
+      throw new Error(`Search API request failed with status ${response.status}. Check server logs for details. Ensure your SEARCH_API_KEY and SEARCH_ENGINE_ID are correct and the Custom Search API is enabled for your project.`);
     }
 
     const data = await response.json();
@@ -81,7 +87,7 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
   } catch (error) {
     console.error('Error fetching real search results:', error);
     // Fallback to mock data on error
-    console.warn('Falling back to mock search results due to an error.');
+    console.warn('Falling back to mock search results due to an error during API call.');
     return getMockSearchResults(input.query);
   }
 }
@@ -93,17 +99,17 @@ function getMockSearchResults(query: string): PerformWebSearchOutput {
       {
         title: 'Mock Result 1 for: ' + query,
         link: 'https://example.com/mock1',
-        snippet: 'This is a mock search result snippet. Configure your Search API for real results.',
+        snippet: 'This is a mock search result snippet. Configure your Search API (SEARCH_API_KEY and SEARCH_ENGINE_ID in environment variables) for real results.',
       },
       {
         title: 'Mock Result 2 for: ' + query,
         link: 'https://example.com/mock2',
-        snippet: 'Another mock snippet. Implement your chosen Search API here.',
+        snippet: 'Another mock snippet. Ensure environment variables are set for your chosen Search API.',
       },
       {
-        title: `More about "${query}"`,
+        title: `More about "${query}" (Mock)`,
         link: `https://en.wikipedia.org/wiki/${encodeURIComponent(query.replace(/\s+/g, '_'))}`,
-        snippet: `This is a mock Wikipedia link for ${query}. Real results require API configuration.`,
+        snippet: `This is a mock Wikipedia link for ${query}. Real results require proper API configuration via environment variables.`,
       }
     ],
   };
@@ -119,3 +125,4 @@ export const performWebSearchTool = ai.defineTool(
   },
   performWebSearchToolHandler
 );
+
