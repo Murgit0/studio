@@ -95,7 +95,7 @@ export default function RetroInfoInterface() {
                         id="query"
                         placeholder="e.g., 'latest advancements in AI'"
                         {...field}
-                        className="text-base"
+                        className="text-sm"
                       />
                     </FormControl>
                     <FormMessage />
@@ -166,7 +166,7 @@ export default function RetroInfoInterface() {
                     <CardHeader className="pb-2">
                       <CardTitle className="text-lg">
                         <a
-                          href={item.url}
+                          href={item.link} 
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-primary hover:text-accent hover:underline flex items-center gap-1 group"
@@ -175,7 +175,7 @@ export default function RetroInfoInterface() {
                           <ExternalLink className="h-4 w-4 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
                         </a>
                       </CardTitle>
-                       <CardDescription className="text-xs text-muted-foreground pt-1 break-all">{item.url}</CardDescription>
+                       <CardDescription className="text-xs text-muted-foreground pt-1 break-all">{item.link}</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <p className="text-sm leading-relaxed">{item.snippet}</p>
