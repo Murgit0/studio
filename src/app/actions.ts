@@ -4,7 +4,8 @@
 import { z } from "zod";
 
 import { generateAnswer } from "@/ai/flows/generate-answer-flow";
-import { generateSearchResults } from "@/ai/flows/generate-search-results-flow.ts";
+// Updated import: generateSearchResults now points to the flow that uses the tool
+import { generateSearchResults } from "@/ai/flows/generate-search-results-flow";
 
 // --- Schemas and Types for generate-answer-flow ---
 const GenerateAnswerInputSchema = z.object({
@@ -18,20 +19,22 @@ const GenerateAnswerOutputSchema = z.object({
 export type GenerateAnswerOutput = z.infer<typeof GenerateAnswerOutputSchema>;
 // --- End Schemas and Types from generate-answer-flow.ts ---
 
-// --- Schemas and Types for generate-search-results-flow ---
+// --- Schemas and Types for generate-search-results-flow (now sourcing from perform-web-search tool) ---
 const GenerateSearchResultsInputSchema = z.object({
   query: z.string().describe('The user query for which to generate search results.'),
 });
 export type GenerateSearchResultsInput = z.infer<typeof GenerateSearchResultsInputSchema>;
 
+// This schema should match WebSearchResultItemSchema from perform-web-search.ts
 const SearchResultItemSchema = z.object({
-  title: z.string().describe('A plausible title for a search result.'),
+  title: z.string().describe('The title of the search result.'),
+  link: z.string().describe('The URL of the search result.'), // Using z.string() for flexibility with real URLs
   snippet: z.string().describe('A short, descriptive snippet for the search result.'),
-  url: z.string().describe('A plausible, but not necessarily real, URL for the search result (e.g., https://example.com/topic).'),
 });
 
+// This schema should match PerformWebSearchOutputSchema from perform-web-search.ts
 const GenerateSearchResultsOutputSchema = z.object({
-  results: z.array(SearchResultItemSchema).max(10).describe('An array of up to 10 simulated search results.'),
+  results: z.array(SearchResultItemSchema).max(10).describe('An array of up to 10 search results.'),
 });
 export type GenerateSearchResultsOutput = z.infer<typeof GenerateSearchResultsOutputSchema>;
 // --- End Schemas and Types from generate-search-results-flow.ts ---
@@ -62,14 +65,17 @@ export async function processSearchQuery(
 
   try {
     // Run both flows in parallel
-    // The input { query } conforms to GenerateAnswerInput and GenerateSearchResultsInput
     const [answerResult, searchResultsResult] = await Promise.allSettled([
       generateAnswer({ query }),
-      generateSearchResults({ query })
+      generateSearchResults({ query }) // This now calls the flow that uses the real search tool
     ]);
 
     const answer = answerResult.status === 'fulfilled' ? answerResult.value : undefined;
-    const searchResults = searchResultsResult.status === 'fulfilled' ? searchResultsResult.value : undefined;
+    // Ensure searchResults conforms to the expected structure, even if the tool/flow returns something slightly different
+    // or if it fails. The schemas help ensure this.
+    const searchResults = searchResultsResult.status === 'fulfilled' ? 
+      GenerateSearchResultsOutputSchema.parse(searchResultsResult.value) // Parse to ensure schema conformity
+      : undefined;
 
     let errorMessages: string[] = [];
     if (answerResult.status === 'rejected') {
@@ -80,15 +86,16 @@ export async function processSearchQuery(
     if (searchResultsResult.status === 'rejected') {
       console.error("Error generating search results:", searchResultsResult.reason);
       const reasonText = searchResultsResult.reason instanceof Error ? searchResultsResult.reason.message : String(searchResultsResult.reason);
-      errorMessages.push(`AI Search Results generation failed: ${reasonText.substring(0,150)}`);
+      errorMessages.push(`Search Results generation failed: ${reasonText.substring(0,150)}`);
+    }  else if (searchResultsResult.status === 'fulfilled' && !GenerateSearchResultsOutputSchema.safeParse(searchResultsResult.value).success) {
+      console.error("Search results format error:", GenerateSearchResultsOutputSchema.safeParse(searchResultsResult.value).error);
+      errorMessages.push(`Search Results format error. Check tool output.`);
     }
     
-    // If both failed and produced no data, return the combined error.
-    if (!answer && !searchResults && errorMessages.length > 0) {
+    if (!answer && (!searchResults || searchResults.results.length === 0) && errorMessages.length > 0) {
       return { error: errorMessages.join("; ") };
     }
 
-    // If one succeeded and the other failed, return the successful data along with the error message.
     return {
       answer,
       searchResults,
