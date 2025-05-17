@@ -75,7 +75,6 @@ export default function RetroInfoInterface() {
     <div className="container mx-auto p-4 md:p-8 space-y-8">
       <header className="text-center">
         <h1 className="text-5xl font-bold text-primary mb-2">Xpoxial Search</h1>
-        <p className="text-muted-foreground text-lg">Your AI-powered gateway to information.</p>
       </header>
 
       <Card className="border-primary shadow-lg shadow-primary/20">
