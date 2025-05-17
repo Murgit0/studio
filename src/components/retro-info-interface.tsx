@@ -13,7 +13,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { processSearchQuery, type SearchActionResult } from "@/app/actions";
 import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import AuthButton from "./auth-button"; // Added AuthButton import
 
 const formSchema = z.object({
   query: z.string().min(3, { message: "Query must be at least 3 characters." }),
@@ -75,12 +74,9 @@ export default function RetroInfoInterface() {
 
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-8">
-      <header className="flex justify-between items-center text-center">
-        <div className="flex-1"> {/* This div helps center the title when AuthButton is present */}
+      <header className="text-center">
+        <div> {/* This div helps center the title */}
           <h1 className="text-5xl font-bold text-primary mb-2">Xpoxial Search</h1>
-        </div>
-        <div className="ml-auto"> {/* AuthButton aligned to the right */}
-          <AuthButton />
         </div>
       </header>
 
