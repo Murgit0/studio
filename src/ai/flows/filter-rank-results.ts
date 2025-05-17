@@ -1,3 +1,4 @@
+
 // src/ai/flows/filter-rank-results.ts
 'use server';
 
@@ -16,7 +17,7 @@ const FilterAndRankResultsInputSchema = z.object({
   query: z.string().describe('The user query to filter and rank information against.'),
   information: z.array(z.string()).describe('An array of information snippets to filter and rank.'),
 });
-export type FilterAndRankResultsInput = z.infer<typeof FilterAndRankResultsInputSchema>;
+type FilterAndRankResultsInput = z.infer<typeof FilterAndRankResultsInputSchema>;
 
 const FilterAndRankResultsOutputSchema = z.array(
   z.object({
@@ -24,7 +25,7 @@ const FilterAndRankResultsOutputSchema = z.array(
     relevanceScore: z.number().describe('A score indicating the relevance of the snippet to the query.'),
   })
 );
-export type FilterAndRankResultsOutput = z.infer<typeof FilterAndRankResultsOutputSchema>;
+type FilterAndRankResultsOutput = z.infer<typeof FilterAndRankResultsOutputSchema>;
 
 export async function filterAndRankResults(input: FilterAndRankResultsInput): Promise<FilterAndRankResultsOutput> {
   return filterAndRankResultsFlow(input);

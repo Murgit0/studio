@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -15,12 +16,12 @@ const SummarizeResultsInputSchema = z.object({
   query: z.string().describe('The search query used to find the information.'),
   results: z.string().describe('The raw information discovered from the search query.'),
 });
-export type SummarizeResultsInput = z.infer<typeof SummarizeResultsInputSchema>;
+type SummarizeResultsInput = z.infer<typeof SummarizeResultsInputSchema>;
 
 const SummarizeResultsOutputSchema = z.object({
   summary: z.string().describe('A concise summary of the information discovered.'),
 });
-export type SummarizeResultsOutput = z.infer<typeof SummarizeResultsOutputSchema>;
+type SummarizeResultsOutput = z.infer<typeof SummarizeResultsOutputSchema>;
 
 export async function summarizeResults(input: SummarizeResultsInput): Promise<SummarizeResultsOutput> {
   return summarizeResultsFlow(input);
