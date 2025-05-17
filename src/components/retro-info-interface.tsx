@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"; // Removed CardDescription from imports if no longer used elsewhere, but it's fine to keep
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { processSearchQuery, type SearchActionResult } from "@/app/actions";
 import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink } from "lucide-react";
@@ -80,7 +80,7 @@ export default function RetroInfoInterface() {
       <Card className="border-primary shadow-lg shadow-primary/20">
         <CardHeader>
           <CardTitle className="text-2xl flex items-center gap-2"><Search className="h-6 w-6 text-accent" /> Enter Your Query</CardTitle>
-          <CardDescription>What would you like to search for?</CardDescription>
+          {/* Removed CardDescription here */}
         </CardHeader>
         <CardContent>
           <Form {...form}>
