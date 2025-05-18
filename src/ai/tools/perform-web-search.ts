@@ -49,9 +49,9 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
   const googleApiKey = process.env.SEARCH_API_KEY;
   const googleSearchEngineId = process.env.SEARCH_ENGINE_ID;
   // API Keys for other image services - to be set in environment variables
-  // const unsplashApiKey = process.env.UNSPLASH_API_KEY;
-  // const pexelsApiKey = process.env.PEXELS_API_KEY;
-  // const bingImageApiKey = process.env.BING_SEARCH_API_KEY; // Or use a general Bing Search API key
+  const unsplashApiKey = process.env.UNSPLASH_API_KEY;
+  const pexelsApiKey = process.env.PEXELS_API_KEY;
+
 
   if (!googleApiKey) {
     console.warn('SEARCH_API_KEY (for Google Custom Search) environment variable is not set. For production environments like Netlify, this must be configured in your site settings. Returning mock search results.');
@@ -85,30 +85,23 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
       let imageUrl = item.pagemap?.cse_thumbnail?.[0]?.src || item.pagemap?.cse_image?.[0]?.src;
 
       // Conceptual: If no image from Google, or to use an alternative provider for images:
-      // You would implement helper functions like fetchImageFromUnsplash, fetchImageFromPexels, etc.
+      // You would implement helper functions like fetchImageFromUnsplash, fetchImageFromPexels.
       // These functions would take item.title or input.query and the respective API key.
 
-      // if (!imageUrl && unsplashApiKey) {
-      //   try {
-      //     // Example: const unsplashImage = await fetchImageFromUnsplash(item.title, unsplashApiKey);
-      //     // if (unsplashImage) imageUrl = unsplashImage.urls.small;
-      //     console.log(`Conceptual: Would fetch from Unsplash for "${item.title}"`);
-      //   } catch (e) { console.error("Error fetching from Unsplash:", e); }
-      // }
-      // if (!imageUrl && pexelsApiKey) {
-      //   try {
-      //     // Example: const pexelsImage = await fetchImageFromPexels(item.title, pexelsApiKey);
-      //     // if (pexelsImage) imageUrl = pexelsImage.src.medium;
-      //     console.log(`Conceptual: Would fetch from Pexels for "${item.title}"`);
-      //   } catch (e) { console.error("Error fetching from Pexels:", e); }
-      // }
-      // if (!imageUrl && bingImageApiKey) {
-      //   try {
-      //     // Example: const bingImage = await fetchImageFromBing(item.title, bingImageApiKey);
-      //     // if (bingImage) imageUrl = bingImage.thumbnailUrl; // Or similar field
-      //     console.log(`Conceptual: Would fetch from Bing Images for "${item.title}"`);
-      //   } catch (e) { console.error("Error fetching from Bing Images:", e); }
-      // }
+      if (!imageUrl && unsplashApiKey) {
+        try {
+          // Example: const unsplashImage = await fetchImageFromService(item.title, unsplashApiKey, 'unsplash');
+          // if (unsplashImage) imageUrl = unsplashImage.urls.small;
+          console.log(`Conceptual: Would attempt to fetch image from Unsplash for "${item.title}" if no Google image found.`);
+        } catch (e) { console.error("Error conceptualizing Unsplash fetch:", e); }
+      }
+      if (!imageUrl && pexelsApiKey) {
+        try {
+          // Example: const pexelsImage = await fetchImageFromService(item.title, pexelsApiKey, 'pexels');
+          // if (pexelsImage) imageUrl = pexelsImage.src.medium;
+          console.log(`Conceptual: Would attempt to fetch image from Pexels for "${item.title}" if no Google/Unsplash image found.`);
+        } catch (e) { console.error("Error conceptualizing Pexels fetch:", e); }
+      }
       
       return {
         title: item.title,
@@ -164,4 +157,3 @@ export const performWebSearchTool = ai.defineTool(
   },
   performWebSearchToolHandler
 );
-
