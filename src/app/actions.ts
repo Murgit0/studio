@@ -1,3 +1,4 @@
+
 // src/app/actions.ts
 "use server";
 
@@ -29,10 +30,14 @@ const SearchResultItemSchema = z.object({
   link: z.string().describe('The URL of the search result.'), 
   snippet: z.string().describe('A short, descriptive snippet for the search result.'),
   imageUrl: z.string().url().optional().describe('Optional URL of a relevant image for the search result.'),
+  imagePhotographerName: z.string().optional().describe("The name of the image's photographer for attribution."),
+  imagePhotographerUrl: z.string().url().optional().describe("A URL to the photographer's profile or source for attribution."),
+  imageSourcePlatform: z.string().optional().describe("The platform the image was sourced from (e.g., Unsplash, Pexels, Google Images)."),
+  imageSourceUrl: z.string().url().optional().describe("A URL to the image's page on the source platform for attribution."),
 });
 
 const GenerateSearchResultsOutputSchema = z.object({
-  results: z.array(SearchResultItemSchema).max(10).describe('An array of up to 10 search results.'),
+  results: z.array(SearchResultItemSchema).max(10).describe('An array of up to 10 search results with optional image attribution.'),
 });
 export type GenerateSearchResultsOutput = z.infer<typeof GenerateSearchResultsOutputSchema>;
 // --- End Schemas and Types from generate-search-results-flow.ts ---
@@ -103,3 +108,4 @@ export async function processSearchQuery(
     return { error: `An error occurred while processing your request: ${errorMessage.substring(0,200)}` };
   }
 }
+

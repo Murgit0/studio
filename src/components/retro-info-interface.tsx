@@ -1,3 +1,4 @@
+
 // src/components/retro-info-interface.tsx
 "use client";
 
@@ -164,10 +165,10 @@ export default function RetroInfoInterface() {
               <CardContent className="space-y-6">
                 {searchResult.searchResults.results.map((item, index) => (
                   <Card key={index} className="bg-card/50 border-border/50 hover:border-accent transition-colors duration-150">
-                    <CardContent className="pt-6 flex gap-4">
+                    <CardContent className="pt-6 flex flex-col md:flex-row gap-4">
                       {item.imageUrl && (
-                        <div className="relative w-24 h-24 md:w-32 md:h-32 shrink-0">
-                          <Image
+                        <div className="relative w-full md:w-32 h-32 md:h-auto shrink-0 md:shrink-0">
+                           <Image
                             src={item.imageUrl}
                             alt={`Image for ${item.title}`}
                             layout="fill"
@@ -190,7 +191,37 @@ export default function RetroInfoInterface() {
                           </a>
                         </CardTitle>
                         <CardDescription className="text-xs text-muted-foreground pt-1 break-all mb-2">{item.link}</CardDescription>
-                        <p className="text-sm leading-relaxed">{item.snippet}</p>
+                        <p className="text-sm leading-relaxed mb-2">{item.snippet}</p>
+                        {item.imageUrl && item.imagePhotographerName && item.imageSourcePlatform && (
+                          <p className="text-xs text-muted-foreground/80 mt-1">
+                            Photo by{' '}
+                            {item.imagePhotographerUrl ? (
+                              <a
+                                href={item.imagePhotographerUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:underline hover:text-accent"
+                              >
+                                {item.imagePhotographerName}
+                              </a>
+                            ) : (
+                              item.imagePhotographerName
+                            )}
+                            {' on '}
+                            {item.imageSourceUrl ? (
+                              <a
+                                href={item.imageSourceUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:underline hover:text-accent"
+                              >
+                                {item.imageSourcePlatform}
+                              </a>
+                            ) : (
+                              item.imageSourcePlatform
+                            )}
+                          </p>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -216,3 +247,4 @@ export default function RetroInfoInterface() {
     </div>
   );
 }
+

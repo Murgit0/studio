@@ -24,6 +24,10 @@ const WebSearchResultItemSchema = z.object({
   link: z.string().describe('The URL of the search result.'),
   snippet: z.string().describe('A brief snippet or description of the search result.'),
   imageUrl: z.string().url().optional().describe('Optional URL of a relevant image for the search result.'),
+  imagePhotographerName: z.string().optional().describe("The name of the image's photographer for attribution."),
+  imagePhotographerUrl: z.string().url().optional().describe("A URL to the photographer's profile or source for attribution."),
+  imageSourcePlatform: z.string().optional().describe("The platform the image was sourced from (e.g., Unsplash, Pexels, Google Images)."),
+  imageSourceUrl: z.string().url().optional().describe("A URL to the image's page on the source platform for attribution."),
 });
 // Type for internal use, not exported from 'use server' module
 type WebSearchResultItem = z.infer<typeof WebSearchResultItemSchema>;
@@ -81,25 +85,47 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
 
     const data = await response.json();
 
-    const results: WebSearchResultItem[] = await Promise.all(data.items?.map(async (item: any) => {
+    const results: WebSearchResultItem[] = await Promise.all(data.items?.map(async (item: any): Promise<WebSearchResultItem> => {
       let imageUrl = item.pagemap?.cse_thumbnail?.[0]?.src || item.pagemap?.cse_image?.[0]?.src;
+      let imagePhotographerName: string | undefined;
+      let imagePhotographerUrl: string | undefined;
+      let imageSourcePlatform: string | undefined = imageUrl ? "Google Images" : undefined; // Default if from Google
+      let imageSourceUrl: string | undefined = imageUrl ? item.link : undefined; // Default if from Google
 
       // Conceptual: If no image from Google, or to use an alternative provider for images:
-      // You would implement helper functions like fetchImageFromUnsplash, fetchImageFromPexels.
-      // These functions would take item.title or input.query and the respective API key.
-
       if (!imageUrl && unsplashApiKey) {
         try {
-          // Example: const unsplashImage = await fetchImageFromService(item.title, unsplashApiKey, 'unsplash');
-          // if (unsplashImage) imageUrl = unsplashImage.urls.small;
           console.log(`Conceptual: Would attempt to fetch image from Unsplash for "${item.title}" if no Google image found.`);
+          // const unsplashImageResponse = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(item.title)}&per_page=1&client_id=${unsplashApiKey}`);
+          // if (unsplashImageResponse.ok) {
+          //   const unsplashData = await unsplashImageResponse.json();
+          //   if (unsplashData.results && unsplashData.results.length > 0) {
+          //     const photo = unsplashData.results[0];
+          //     imageUrl = photo.urls.small;
+          //     imagePhotographerName = photo.user.name;
+          //     imagePhotographerUrl = photo.user.links.html;
+          //     imageSourcePlatform = "Unsplash";
+          //     imageSourceUrl = photo.links.html;
+          //     // Remember to call Unsplash's download endpoint if user "uses" the photo: photo.links.download_location
+          //   }
+          // }
         } catch (e) { console.error("Error conceptualizing Unsplash fetch:", e); }
       }
       if (!imageUrl && pexelsApiKey) {
         try {
-          // Example: const pexelsImage = await fetchImageFromService(item.title, pexelsApiKey, 'pexels');
-          // if (pexelsImage) imageUrl = pexelsImage.src.medium;
           console.log(`Conceptual: Would attempt to fetch image from Pexels for "${item.title}" if no Google/Unsplash image found.`);
+          // const pexelsResponse = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(item.title)}&per_page=1`, { headers: { Authorization: pexelsApiKey }});
+          // if (pexelsResponse.ok) {
+          //   const pexelsData = await pexelsResponse.json();
+          //   if (pexelsData.photos && pexelsData.photos.length > 0) {
+          //     const photo = pexelsData.photos[0];
+          //     imageUrl = photo.src.medium; // or other sizes
+          //     imagePhotographerName = photo.photographer;
+          //     imagePhotographerUrl = photo.photographer_url;
+          //     imageSourcePlatform = "Pexels";
+          //     imageSourceUrl = photo.url;
+          //   }
+          // }
         } catch (e) { console.error("Error conceptualizing Pexels fetch:", e); }
       }
       
@@ -108,6 +134,10 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
         link: item.link,
         snippet: item.snippet,
         imageUrl: imageUrl || `https://placehold.co/150x100.png?text=${encodeURIComponent(item.title.substring(0,10))}`,
+        imagePhotographerName,
+        imagePhotographerUrl,
+        imageSourcePlatform: imageUrl ? (imageSourcePlatform || "Source") : undefined, // Ensure platform name if image exists
+        imageSourceUrl,
       };
     }) || []);
     
@@ -130,18 +160,26 @@ function getMockSearchResults(query: string, providerHint?: string): PerformWebS
         link: `https://example.com/mock1?q=${encodedQuery}`,
         snippet: `This is a mock search result snippet. Configure your Search API (SEARCH_API_KEY and SEARCH_ENGINE_ID in environment variables) for real results. ${hint}`,
         imageUrl: `https://placehold.co/150x100.png?text=Mock1`,
+        imagePhotographerName: "Mock Artist 1",
+        imagePhotographerUrl: "https://example.com/artist1",
+        imageSourcePlatform: "MockPlatform",
+        imageSourceUrl: "https://example.com/mock1/image_source",
       },
       {
         title: `Mock Result 2 for: ${query}${hint}`,
         link: `https://example.com/mock2?q=${encodedQuery}`,
         snippet: `Another mock snippet. Ensure environment variables are set for your chosen Search API. ${hint}`,
         imageUrl: `https://placehold.co/150x100.png?text=Mock2`,
+        imagePhotographerName: "Mock Artist 2",
+        imagePhotographerUrl: "https://example.com/artist2",
+        imageSourcePlatform: "MockPlatform",
+        imageSourceUrl: "https://example.com/mock2/image_source",
       },
       {
         title: `More about "${query}" (Mock)${hint}`,
         link: `https://en.wikipedia.org/wiki/${encodeURIComponent(query.replace(/\s+/g, '_'))}`,
         snippet: `This is a mock Wikipedia link for ${query}. Real results require proper API configuration via environment variables. ${hint}`,
-        imageUrl: `https://placehold.co/150x100.png?text=Wiki`,
+        // No image for this one to test conditional rendering
       }
     ],
   };
@@ -151,9 +189,10 @@ function getMockSearchResults(query: string, providerHint?: string): PerformWebS
 export const performWebSearchTool = ai.defineTool(
   {
     name: 'performWebSearch',
-    description: 'Performs a web search for the given query and returns a list of results including title, link, snippet, and optionally an image URL.',
+    description: 'Performs a web search for the given query and returns a list of results including title, link, snippet, and optionally an image URL with attribution.',
     inputSchema: PerformWebSearchInputSchema, 
     outputSchema: PerformWebSearchOutputSchema, 
   },
   performWebSearchToolHandler
 );
+
