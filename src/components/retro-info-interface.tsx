@@ -47,7 +47,7 @@ export default function RetroInfoInterface() {
           title: "Processing Issue",
           description: response.error,
         });
-      } else if (!response.answer?.answer && (!response.searchResults?.results || response.searchResults.results.length === 0) && !response.searchResults?.results?.some(item => item.imageUrl)) {
+      } else if (!response.answer?.answer && (!response.searchResults?.webResults || response.searchResults.webResults.length === 0) && (!response.searchResults?.images || response.searchResults.images.length === 0)) {
         toast({
           variant: "default",
           title: "No Specific Results",
@@ -73,18 +73,7 @@ export default function RetroInfoInterface() {
     }
   }
 
-  const allImagesFromResults = searchResult?.searchResults?.results
-    ?.filter(item => !!item.imageUrl)
-    .map(item => ({
-      url: item.imageUrl!,
-      alt: `Image for ${item.title}`,
-      link: item.link,
-      photographerName: item.imagePhotographerName,
-      photographerUrl: item.imagePhotographerUrl,
-      sourcePlatform: item.imageSourcePlatform,
-      sourceUrl: item.imageSourceUrl,
-      title: item.title // For data-ai-hint
-    })) || [];
+  const fetchedImages = searchResult?.searchResults?.images || [];
 
 
   return (
@@ -159,8 +148,8 @@ export default function RetroInfoInterface() {
       {searchResult && !searchResult.error && !isLoading && (
         <>
           {(!searchResult.answer?.answer && 
-           (!searchResult.searchResults?.results || searchResult.searchResults.results.length === 0) &&
-           allImagesFromResults.length === 0
+           (!searchResult.searchResults?.webResults || searchResult.searchResults.webResults.length === 0) &&
+           fetchedImages.length === 0
           ) ? (
             <Card className="border-primary shadow-lg shadow-primary/20">
               <CardHeader>
@@ -187,27 +176,15 @@ export default function RetroInfoInterface() {
                   </Card>
                 )}
 
-                {searchResult.searchResults && searchResult.searchResults.results && searchResult.searchResults.results.length > 0 && (
+                {searchResult.searchResults && searchResult.searchResults.webResults && searchResult.searchResults.webResults.length > 0 && (
                   <Card className="border-primary shadow-lg shadow-primary/20">
                     <CardHeader>
                       <CardTitle className="text-2xl flex items-center gap-2"><ListTree className="h-6 w-6 text-accent"/> Search Results</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                      {searchResult.searchResults.results.map((item, index) => (
+                      {searchResult.searchResults.webResults.map((item, index) => (
                         <Card key={index} className="bg-card/50 border-border/50 hover:border-accent transition-colors duration-150">
-                          <CardContent className="pt-6 flex flex-col md:flex-row gap-4">
-                            {item.imageUrl && (
-                              <div className="relative w-full md:w-32 h-32 md:h-24 shrink-0">
-                                 <Image
-                                  src={item.imageUrl}
-                                  alt={`Thumbnail for ${item.title}`}
-                                  layout="fill"
-                                  objectFit="cover"
-                                  className="rounded-md border border-border shadow-md"
-                                  data-ai-hint={item.imageUrl.includes('placehold.co') ? item.title.split(' ').slice(0, 2).join(' ') : "search result"}
-                                />
-                              </div>
-                            )}
+                          <CardContent className="pt-6">
                             <div className="flex-grow">
                               <CardTitle className="text-lg mb-1">
                                 <a
@@ -222,35 +199,6 @@ export default function RetroInfoInterface() {
                               </CardTitle>
                               <CardDescription className="text-xs text-muted-foreground pt-1 break-all mb-2">{item.link}</CardDescription>
                               <p className="text-sm leading-relaxed mb-2">{item.snippet}</p>
-                              {item.imageUrl && (item.imagePhotographerName || item.imageSourcePlatform) && (
-                                <p className="text-xs text-muted-foreground/80 mt-1">
-                                  {item.imagePhotographerName && (
-                                    <>
-                                      Photo by{' '}
-                                      {item.imagePhotographerUrl ? (
-                                        <a href={item.imagePhotographerUrl} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-accent">
-                                          {item.imagePhotographerName}
-                                        </a>
-                                      ) : (
-                                        item.imagePhotographerName
-                                      )}
-                                    </>
-                                  )}
-                                  {item.imagePhotographerName && item.imageSourcePlatform && ' on '}
-                                  {!item.imagePhotographerName && item.imageSourcePlatform && 'Image via '}
-                                  {item.imageSourcePlatform && (
-                                    <>
-                                      {item.imageSourceUrl ? (
-                                        <a href={item.imageSourceUrl} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-accent">
-                                          {item.imageSourcePlatform}
-                                        </a>
-                                      ) : (
-                                        item.imageSourcePlatform
-                                      )}
-                                    </>
-                                  )}
-                                </p>
-                              )}
                             </div>
                           </CardContent>
                         </Card>
@@ -261,7 +209,7 @@ export default function RetroInfoInterface() {
               </div>
 
               {/* New Images Section Column */}
-              {allImagesFromResults.length > 0 && (
+              {fetchedImages.length > 0 && (
                 <div className="md:col-span-1 space-y-8">
                   <Card className="border-secondary shadow-lg shadow-secondary/20">
                     <CardHeader>
@@ -271,17 +219,17 @@ export default function RetroInfoInterface() {
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-2 gap-4">
-                        {allImagesFromResults.map((img, index) => (
+                        {fetchedImages.map((img, index) => (
                           <div key={index} className="group relative">
-                            <a href={img.link} target="_blank" rel="noopener noreferrer" className="block">
+                            <a href={img.sourceUrl || '#'} target="_blank" rel="noopener noreferrer" className="block">
                               <div className="relative w-full aspect-square mb-1">
                                 <Image
-                                  src={img.url}
-                                  alt={img.alt}
+                                  src={img.imageUrl}
+                                  alt={img.altText || `Image related to query ${index + 1}`}
                                   layout="fill"
                                   objectFit="cover"
                                   className="rounded-md border border-border shadow-md group-hover:opacity-80 transition-opacity"
-                                  data-ai-hint={img.url.includes('placehold.co') ? img.title.split(' ').slice(0, 2).join(' ') : "search image"}
+                                  data-ai-hint={img.imageUrl.includes('placehold.co') ? (form.getValues("query").split(' ').slice(0, 2).join(' ') || "query image") : (img.altText?.split(' ').slice(0,2).join(' ') || "api image")}
                                 />
                               </div>
                             </a>

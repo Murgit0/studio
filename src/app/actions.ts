@@ -25,19 +25,26 @@ const GenerateSearchResultsInputSchema = z.object({
 });
 export type GenerateSearchResultsInput = z.infer<typeof GenerateSearchResultsInputSchema>;
 
-const SearchResultItemSchema = z.object({
+// Schema for a single web search result item (text-focused)
+const WebSearchResultItemSchema = z.object({
   title: z.string().describe('The title of the search result.'),
-  link: z.string().describe('The URL of the search result.'), 
+  link: z.string().describe('The URL of the search result.'),
   snippet: z.string().describe('A short, descriptive snippet for the search result.'),
-  imageUrl: z.string().url().optional().describe('Optional URL of a relevant image for the search result.'),
-  imagePhotographerName: z.string().optional().describe("The name of the image's photographer for attribution."),
-  imagePhotographerUrl: z.string().url().optional().describe("A URL to the photographer's profile or source for attribution."),
-  imageSourcePlatform: z.string().optional().describe("The platform the image was sourced from (e.g., Unsplash, Pexels, Google Images)."),
-  imageSourceUrl: z.string().url().optional().describe("A URL to the image's page on the source platform for attribution."),
+});
+
+// Schema for a single image result item
+const ImageResultItemSchema = z.object({
+  imageUrl: z.string().url().describe('URL of the image.'),
+  altText: z.string().optional().describe('Alt text for the image.'),
+  photographerName: z.string().optional().describe("The name of the image's photographer for attribution."),
+  photographerUrl: z.string().url().optional().describe("A URL to the photographer's profile or source for attribution."),
+  sourcePlatform: z.string().optional().describe("The platform the image was sourced from (e.g., Pexels, Unsplash)."),
+  sourceUrl: z.string().url().optional().describe("A URL to the image's page on the source platform for attribution."),
 });
 
 const GenerateSearchResultsOutputSchema = z.object({
-  results: z.array(SearchResultItemSchema).max(10).describe('An array of up to 10 search results with optional image attribution.'),
+  webResults: z.array(WebSearchResultItemSchema).describe('An array of web search results.'),
+  images: z.array(ImageResultItemSchema).optional().describe('An array of image search results.'),
 });
 export type GenerateSearchResultsOutput = z.infer<typeof GenerateSearchResultsOutputSchema>;
 // --- End Schemas and Types from generate-search-results-flow.ts ---
@@ -50,7 +57,7 @@ export type ProcessSearchQueryInput = z.infer<typeof processSearchQueryInputSche
 
 export interface SearchActionResult {
   answer?: GenerateAnswerOutput;
-  searchResults?: GenerateSearchResultsOutput;
+  searchResults?: GenerateSearchResultsOutput; // This will contain both webResults and images
   error?: string;
 }
 
@@ -69,13 +76,22 @@ export async function processSearchQuery(
     // Run all flows in parallel
     const [answerResult, searchResultsResult] = await Promise.allSettled([
       generateAnswer({ query }),
-      generateSearchResults({ query })
+      generateSearchResults({ query }) // This now fetches both web text and images separately
     ]);
 
     const answer = answerResult.status === 'fulfilled' ? answerResult.value : undefined;
-    const searchResults = searchResultsResult.status === 'fulfilled' ? 
-      GenerateSearchResultsOutputSchema.parse(searchResultsResult.value) 
-      : undefined;
+    
+    let parsedSearchResults: GenerateSearchResultsOutput | undefined;
+    if (searchResultsResult.status === 'fulfilled') {
+      const validation = GenerateSearchResultsOutputSchema.safeParse(searchResultsResult.value);
+      if (validation.success) {
+        parsedSearchResults = validation.data;
+      } else {
+        console.error("Search results format error (actions.ts):", validation.error);
+         parsedSearchResults = { webResults: (searchResultsResult.value as any).webResults || [], images: (searchResultsResult.value as any).images || [] }; // Graceful degradation
+      }
+    }
+
 
     let errorMessages: string[] = [];
     if (answerResult.status === 'rejected') {
@@ -87,18 +103,19 @@ export async function processSearchQuery(
       console.error("Error generating search results:", searchResultsResult.reason);
       const reasonText = searchResultsResult.reason instanceof Error ? searchResultsResult.reason.message : String(searchResultsResult.reason);
       errorMessages.push(`Search Results generation failed: ${reasonText.substring(0,150)}`);
-    }  else if (searchResultsResult.status === 'fulfilled' && !GenerateSearchResultsOutputSchema.safeParse(searchResultsResult.value).success) {
-      console.error("Search results format error:", GenerateSearchResultsOutputSchema.safeParse(searchResultsResult.value).error);
+    } else if (searchResultsResult.status === 'fulfilled' && !GenerateSearchResultsOutputSchema.safeParse(searchResultsResult.value).success) {
+      // Error logged above
       errorMessages.push(`Search Results format error. Check tool output.`);
     }
     
-    if (!answer && (!searchResults || searchResults.results.length === 0) && errorMessages.length > 0) {
+    if (!answer && (!parsedSearchResults || ((!parsedSearchResults.webResults || parsedSearchResults.webResults.length === 0) && (!parsedSearchResults.images || parsedSearchResults.images.length === 0))) && errorMessages.length > 0) {
       return { error: errorMessages.join("; ") };
     }
+    
 
     return {
       answer,
-      searchResults,
+      searchResults: parsedSearchResults,
       error: errorMessages.length > 0 ? errorMessages.join("; ") : undefined,
     };
 
@@ -108,4 +125,3 @@ export async function processSearchQuery(
     return { error: `An error occurred while processing your request: ${errorMessage.substring(0,200)}` };
   }
 }
-
