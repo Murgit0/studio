@@ -96,6 +96,11 @@
   }
 }
 
+@keyframes animated-grid {
+  0% { background-position: 0 0; }
+  100% { background-position: var(--grid-size) var(--grid-size); }
+}
+
 @layer base {
   * {
     @apply border-border;
@@ -109,6 +114,7 @@
       linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px);
     background-size: var(--grid-size) var(--grid-size);
     min-height: 100vh; /* Ensure background covers full viewport height */
+    animation: animated-grid 20s linear infinite; /* Added animation */
   }
 }
 
