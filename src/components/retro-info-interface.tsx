@@ -1,4 +1,3 @@
-
 // src/components/retro-info-interface.tsx
 "use client";
 
@@ -11,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { processSearchQuery, type SearchActionResult } from "@/app/actions";
-import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink } from "lucide-react";
+import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, Image as ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
@@ -46,7 +45,7 @@ export default function RetroInfoInterface() {
           title: "Processing Issue",
           description: response.error,
         });
-      } else if (!response.answer?.answer && (!response.searchResults?.results || response.searchResults.results.length === 0)) {
+      } else if (!response.answer?.answer && (!response.searchResults?.results || response.searchResults.results.length === 0) && !response.imageResult?.imageDataUri) {
         toast({
           variant: "default",
           title: "No Specific Results",
@@ -75,7 +74,7 @@ export default function RetroInfoInterface() {
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-8">
       <header className="text-center">
-        <div> {/* This div helps center the title */}
+        <div> 
           <h1 className="text-5xl font-bold text-primary mb-2">Xpoxial Search</h1>
         </div>
       </header>
@@ -156,6 +155,22 @@ export default function RetroInfoInterface() {
             </Card>
           )}
 
+          {searchResult.imageResult && searchResult.imageResult.imageDataUri && (
+            <Card className="border-primary shadow-lg shadow-primary/20">
+              <CardHeader>
+                <CardTitle className="text-2xl flex items-center gap-2"><ImageIcon className="h-6 w-6 text-accent"/> AI Generated Image</CardTitle>
+              </CardHeader>
+              <CardContent className="flex justify-center">
+                <img
+                  src={searchResult.imageResult.imageDataUri}
+                  alt={`AI generated for: ${form.getValues("query")}`}
+                  className="rounded-md border border-border shadow-md max-w-full md:max-w-xl h-auto"
+                  data-ai-hint="query generated"
+                />
+              </CardContent>
+            </Card>
+          )}
+
           {searchResult.searchResults && searchResult.searchResults.results && searchResult.searchResults.results.length > 0 && (
             <Card className="border-primary shadow-lg shadow-primary/20">
               <CardHeader>
@@ -187,7 +202,7 @@ export default function RetroInfoInterface() {
             </Card>
           )}
           
-          {!isLoading && !searchResult.error && !searchResult.answer?.answer && (!searchResult.searchResults?.results || searchResult.searchResults.results.length === 0) && (
+          {!isLoading && !searchResult.error && !searchResult.answer?.answer && (!searchResult.searchResults?.results || searchResult.searchResults.results.length === 0) && !searchResult.imageResult?.imageDataUri && (
              <Card className="border-primary shadow-lg shadow-primary/20">
               <CardHeader>
                 <CardTitle className="text-2xl flex items-center gap-2"><Search className="h-6 w-6 text-accent"/> No Specific Results</CardTitle>
