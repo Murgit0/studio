@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { processSearchQuery, type SearchActionResult } from "@/app/actions";
-import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink } from "lucide-react";
+import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
@@ -73,12 +73,12 @@ export default function RetroInfoInterface() {
     }
   }
 
+  const firstResultWithImage = searchResult?.searchResults?.results?.find(item => item.imageUrl);
+
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-8">
       <header className="text-center">
-        <div> 
-          <h1 className="text-5xl font-bold text-primary mb-2">Xpoxial Search</h1>
-        </div>
+        <h1 className="text-5xl font-bold text-primary mb-2">Xpoxial Search</h1>
       </header>
 
       <Card className="border-primary shadow-lg shadow-primary/20">
@@ -145,93 +145,11 @@ export default function RetroInfoInterface() {
       )}
 
       {searchResult && !searchResult.error && !isLoading && (
-        <div className="space-y-8">
-          {searchResult.answer && searchResult.answer.answer && (
-            <Card className="border-accent shadow-lg shadow-accent/20">
-              <CardHeader>
-                <CardTitle className="text-2xl flex items-center gap-2"><Brain className="h-6 w-6 text-accent"/> AI Answer</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-base leading-relaxed whitespace-pre-wrap">{searchResult.answer.answer}</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {searchResult.searchResults && searchResult.searchResults.results && searchResult.searchResults.results.length > 0 && (
+        <>
+          {/* Check if there's anything to display in the main content column */}
+          {(!searchResult.answer?.answer && (!searchResult.searchResults?.results || searchResult.searchResults.results.length === 0)) ? (
+            // If main content is empty, show "No Specific Results" card
             <Card className="border-primary shadow-lg shadow-primary/20">
-              <CardHeader>
-                <CardTitle className="text-2xl flex items-center gap-2"><ListTree className="h-6 w-6 text-accent"/> Search Results</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {searchResult.searchResults.results.map((item, index) => (
-                  <Card key={index} className="bg-card/50 border-border/50 hover:border-accent transition-colors duration-150">
-                    <CardContent className="pt-6 flex flex-col md:flex-row gap-4">
-                      {item.imageUrl && (
-                        <div className="relative w-full md:w-32 h-32 md:h-auto shrink-0 md:shrink-0">
-                           <Image
-                            src={item.imageUrl}
-                            alt={`Image for ${item.title}`}
-                            layout="fill"
-                            objectFit="cover"
-                            className="rounded-md border border-border shadow-md"
-                            data-ai-hint="search result"
-                          />
-                        </div>
-                      )}
-                      <div className="flex-grow">
-                        <CardTitle className="text-lg mb-1">
-                          <a
-                            href={item.link} 
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:text-accent hover:underline flex items-center gap-1 group"
-                          >
-                            {item.title}
-                            <ExternalLink className="h-4 w-4 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
-                          </a>
-                        </CardTitle>
-                        <CardDescription className="text-xs text-muted-foreground pt-1 break-all mb-2">{item.link}</CardDescription>
-                        <p className="text-sm leading-relaxed mb-2">{item.snippet}</p>
-                        {item.imageUrl && item.imagePhotographerName && item.imageSourcePlatform && (
-                          <p className="text-xs text-muted-foreground/80 mt-1">
-                            Photo by{' '}
-                            {item.imagePhotographerUrl ? (
-                              <a
-                                href={item.imagePhotographerUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="hover:underline hover:text-accent"
-                              >
-                                {item.imagePhotographerName}
-                              </a>
-                            ) : (
-                              item.imagePhotographerName
-                            )}
-                            {' on '}
-                            {item.imageSourceUrl ? (
-                              <a
-                                href={item.imageSourceUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="hover:underline hover:text-accent"
-                              >
-                                {item.imageSourcePlatform}
-                              </a>
-                            ) : (
-                              item.imageSourcePlatform
-                            )}
-                          </p>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-          
-          {!isLoading && !searchResult.error && !searchResult.answer?.answer && (!searchResult.searchResults?.results || searchResult.searchResults.results.length === 0) && (
-             <Card className="border-primary shadow-lg shadow-primary/20">
               <CardHeader>
                 <CardTitle className="text-2xl flex items-center gap-2"><Search className="h-6 w-6 text-accent"/> No Specific Results</CardTitle>
               </CardHeader>
@@ -241,8 +159,151 @@ export default function RetroInfoInterface() {
                 </p>
               </CardContent>
             </Card>
+          ) : (
+            // If there is content, display the two-column layout
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {/* Main Content Column (AI Answer + Search Results List) */}
+              <div className="md:col-span-2 space-y-8">
+                {searchResult.answer && searchResult.answer.answer && (
+                  <Card className="border-accent shadow-lg shadow-accent/20">
+                    <CardHeader>
+                      <CardTitle className="text-2xl flex items-center gap-2"><Brain className="h-6 w-6 text-accent"/> AI Answer</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-base leading-relaxed whitespace-pre-wrap">{searchResult.answer.answer}</p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {searchResult.searchResults && searchResult.searchResults.results && searchResult.searchResults.results.length > 0 && (
+                  <Card className="border-primary shadow-lg shadow-primary/20">
+                    <CardHeader>
+                      <CardTitle className="text-2xl flex items-center gap-2"><ListTree className="h-6 w-6 text-accent"/> Search Results</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      {searchResult.searchResults.results.map((item, index) => (
+                        <Card key={index} className="bg-card/50 border-border/50 hover:border-accent transition-colors duration-150">
+                          <CardContent className="pt-6 flex flex-col md:flex-row gap-4">
+                            {item.imageUrl && (
+                              <div className="relative w-full md:w-32 h-32 md:h-24 shrink-0"> {/* Adjusted size for list items */}
+                                 <Image
+                                  src={item.imageUrl}
+                                  alt={`Image for ${item.title}`}
+                                  layout="fill"
+                                  objectFit="cover"
+                                  className="rounded-md border border-border shadow-md"
+                                  data-ai-hint="search result"
+                                />
+                              </div>
+                            )}
+                            <div className="flex-grow">
+                              <CardTitle className="text-lg mb-1">
+                                <a
+                                  href={item.link} 
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-primary hover:text-accent hover:underline flex items-center gap-1 group"
+                                >
+                                  {item.title}
+                                  <ExternalLink className="h-4 w-4 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
+                                </a>
+                              </CardTitle>
+                              <CardDescription className="text-xs text-muted-foreground pt-1 break-all mb-2">{item.link}</CardDescription>
+                              <p className="text-sm leading-relaxed mb-2">{item.snippet}</p>
+                              {item.imageUrl && (item.imagePhotographerName || item.imageSourcePlatform) && (
+                                <p className="text-xs text-muted-foreground/80 mt-1">
+                                  {item.imagePhotographerName && (
+                                    <>
+                                      Photo by{' '}
+                                      {item.imagePhotographerUrl ? (
+                                        <a href={item.imagePhotographerUrl} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-accent">
+                                          {item.imagePhotographerName}
+                                        </a>
+                                      ) : (
+                                        item.imagePhotographerName
+                                      )}
+                                    </>
+                                  )}
+                                  {item.imagePhotographerName && item.imageSourcePlatform && ' on '}
+                                  {!item.imagePhotographerName && item.imageSourcePlatform && 'Image via '}
+                                  {item.imageSourcePlatform && (
+                                    <>
+                                      {item.imageSourceUrl ? (
+                                        <a href={item.imageSourceUrl} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-accent">
+                                          {item.imageSourcePlatform}
+                                        </a>
+                                      ) : (
+                                        item.imageSourcePlatform
+                                      )}
+                                    </>
+                                  )}
+                                </p>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
+              {/* Image Section Column */}
+              <div className="md:col-span-1 space-y-8">
+                {firstResultWithImage && firstResultWithImage.imageUrl && (
+                  <Card className="border-secondary shadow-lg shadow-secondary/20">
+                    <CardHeader>
+                      <CardTitle className="text-xl flex items-center gap-2">
+                        <ImageIcon className="h-5 w-5 text-accent"/> Relevant Image
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="relative w-full aspect-video mb-2">
+                        <Image
+                          src={firstResultWithImage.imageUrl}
+                          alt={`Relevant image for query: ${form.getValues("query")}`}
+                          layout="fill"
+                          objectFit="contain"
+                          className="rounded-md border border-border shadow-md"
+                          data-ai-hint="relevant query image"
+                        />
+                      </div>
+                      {(firstResultWithImage.imagePhotographerName || firstResultWithImage.imageSourcePlatform) && (
+                         <p className="text-xs text-muted-foreground/80 mt-1 text-center">
+                          {firstResultWithImage.imagePhotographerName && (
+                            <>
+                              Photo by{' '}
+                              {firstResultWithImage.imagePhotographerUrl ? (
+                                <a href={firstResultWithImage.imagePhotographerUrl} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-accent">
+                                  {firstResultWithImage.imagePhotographerName}
+                                </a>
+                              ) : (
+                                firstResultWithImage.imagePhotographerName
+                              )}
+                            </>
+                          )}
+                          {firstResultWithImage.imagePhotographerName && firstResultWithImage.imageSourcePlatform && ' on '}
+                          {!firstResultWithImage.imagePhotographerName && firstResultWithImage.imageSourcePlatform && 'Image via '}
+                          {firstResultWithImage.imageSourcePlatform && (
+                            <>
+                              {firstResultWithImage.imageSourceUrl ? (
+                                <a href={firstResultWithImage.imageSourceUrl} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-accent">
+                                  {firstResultWithImage.imageSourcePlatform}
+                                </a>
+                              ) : (
+                                firstResultWithImage.imageSourcePlatform
+                              )}
+                            </>
+                          )}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );
