@@ -47,7 +47,7 @@ export default function RetroInfoInterface() {
           title: "Processing Issue",
           description: response.error,
         });
-      } else if (!response.answer?.answer && (!response.searchResults?.results || response.searchResults.results.length === 0)) {
+      } else if (!response.answer?.answer && (!response.searchResults?.results || response.searchResults.results.length === 0) && !response.searchResults?.results?.some(item => item.imageUrl)) {
         toast({
           variant: "default",
           title: "No Specific Results",
@@ -73,7 +73,19 @@ export default function RetroInfoInterface() {
     }
   }
 
-  const firstResultWithImage = searchResult?.searchResults?.results?.find(item => item.imageUrl);
+  const allImagesFromResults = searchResult?.searchResults?.results
+    ?.filter(item => !!item.imageUrl)
+    .map(item => ({
+      url: item.imageUrl!,
+      alt: `Image for ${item.title}`,
+      link: item.link,
+      photographerName: item.imagePhotographerName,
+      photographerUrl: item.imagePhotographerUrl,
+      sourcePlatform: item.imageSourcePlatform,
+      sourceUrl: item.imageSourceUrl,
+      title: item.title // For data-ai-hint
+    })) || [];
+
 
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-8">
@@ -146,9 +158,10 @@ export default function RetroInfoInterface() {
 
       {searchResult && !searchResult.error && !isLoading && (
         <>
-          {/* Check if there's anything to display in the main content column */}
-          {(!searchResult.answer?.answer && (!searchResult.searchResults?.results || searchResult.searchResults.results.length === 0)) ? (
-            // If main content is empty, show "No Specific Results" card
+          {(!searchResult.answer?.answer && 
+           (!searchResult.searchResults?.results || searchResult.searchResults.results.length === 0) &&
+           allImagesFromResults.length === 0
+          ) ? (
             <Card className="border-primary shadow-lg shadow-primary/20">
               <CardHeader>
                 <CardTitle className="text-2xl flex items-center gap-2"><Search className="h-6 w-6 text-accent"/> No Specific Results</CardTitle>
@@ -160,7 +173,6 @@ export default function RetroInfoInterface() {
               </CardContent>
             </Card>
           ) : (
-            // If there is content, display the two-column layout
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {/* Main Content Column (AI Answer + Search Results List) */}
               <div className="md:col-span-2 space-y-8">
@@ -185,14 +197,14 @@ export default function RetroInfoInterface() {
                         <Card key={index} className="bg-card/50 border-border/50 hover:border-accent transition-colors duration-150">
                           <CardContent className="pt-6 flex flex-col md:flex-row gap-4">
                             {item.imageUrl && (
-                              <div className="relative w-full md:w-32 h-32 md:h-24 shrink-0"> {/* Adjusted size for list items */}
+                              <div className="relative w-full md:w-32 h-32 md:h-24 shrink-0">
                                  <Image
                                   src={item.imageUrl}
-                                  alt={`Image for ${item.title}`}
+                                  alt={`Thumbnail for ${item.title}`}
                                   layout="fill"
                                   objectFit="cover"
                                   className="rounded-md border border-border shadow-md"
-                                  data-ai-hint="search result"
+                                  data-ai-hint={item.imageUrl.includes('placehold.co') ? item.title.split(' ').slice(0, 2).join(' ') : "search result"}
                                 />
                               </div>
                             )}
@@ -248,59 +260,67 @@ export default function RetroInfoInterface() {
                 )}
               </div>
 
-              {/* Image Section Column */}
-              <div className="md:col-span-1 space-y-8">
-                {firstResultWithImage && firstResultWithImage.imageUrl && (
+              {/* New Images Section Column */}
+              {allImagesFromResults.length > 0 && (
+                <div className="md:col-span-1 space-y-8">
                   <Card className="border-secondary shadow-lg shadow-secondary/20">
                     <CardHeader>
                       <CardTitle className="text-xl flex items-center gap-2">
-                        <ImageIcon className="h-5 w-5 text-accent"/> Relevant Image
+                        <ImageIcon className="h-5 w-5 text-accent"/> Images
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="relative w-full aspect-video mb-2">
-                        <Image
-                          src={firstResultWithImage.imageUrl}
-                          alt={`Relevant image for query: ${form.getValues("query")}`}
-                          layout="fill"
-                          objectFit="contain"
-                          className="rounded-md border border-border shadow-md"
-                          data-ai-hint="relevant query image"
-                        />
+                      <div className="grid grid-cols-2 gap-4">
+                        {allImagesFromResults.map((img, index) => (
+                          <div key={index} className="group relative">
+                            <a href={img.link} target="_blank" rel="noopener noreferrer" className="block">
+                              <div className="relative w-full aspect-square mb-1">
+                                <Image
+                                  src={img.url}
+                                  alt={img.alt}
+                                  layout="fill"
+                                  objectFit="cover"
+                                  className="rounded-md border border-border shadow-md group-hover:opacity-80 transition-opacity"
+                                  data-ai-hint={img.url.includes('placehold.co') ? img.title.split(' ').slice(0, 2).join(' ') : "search image"}
+                                />
+                              </div>
+                            </a>
+                             {(img.photographerName || img.sourcePlatform) && (
+                               <p className="text-[0.65rem] leading-tight text-muted-foreground/80 mt-1 text-center">
+                                {img.photographerName && (
+                                  <>
+                                    Photo by{' '}
+                                    {img.photographerUrl ? (
+                                      <a href={img.photographerUrl} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-accent">
+                                        {img.photographerName}
+                                      </a>
+                                    ) : (
+                                      img.photographerName
+                                    )}
+                                  </>
+                                )}
+                                {img.photographerName && img.sourcePlatform && ' on '}
+                                {!img.photographerName && img.sourcePlatform && 'Image via '}
+                                {img.sourcePlatform && (
+                                  <>
+                                    {img.sourceUrl ? (
+                                      <a href={img.sourceUrl} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-accent">
+                                        {img.sourcePlatform}
+                                      </a>
+                                    ) : (
+                                      img.sourcePlatform
+                                    )}
+                                  </>
+                                )}
+                              </p>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                      {(firstResultWithImage.imagePhotographerName || firstResultWithImage.imageSourcePlatform) && (
-                         <p className="text-xs text-muted-foreground/80 mt-1 text-center">
-                          {firstResultWithImage.imagePhotographerName && (
-                            <>
-                              Photo by{' '}
-                              {firstResultWithImage.imagePhotographerUrl ? (
-                                <a href={firstResultWithImage.imagePhotographerUrl} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-accent">
-                                  {firstResultWithImage.imagePhotographerName}
-                                </a>
-                              ) : (
-                                firstResultWithImage.imagePhotographerName
-                              )}
-                            </>
-                          )}
-                          {firstResultWithImage.imagePhotographerName && firstResultWithImage.imageSourcePlatform && ' on '}
-                          {!firstResultWithImage.imagePhotographerName && firstResultWithImage.imageSourcePlatform && 'Image via '}
-                          {firstResultWithImage.imageSourcePlatform && (
-                            <>
-                              {firstResultWithImage.imageSourceUrl ? (
-                                <a href={firstResultWithImage.imageSourceUrl} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-accent">
-                                  {firstResultWithImage.imageSourcePlatform}
-                                </a>
-                              ) : (
-                                firstResultWithImage.imageSourcePlatform
-                              )}
-                            </>
-                          )}
-                        </p>
-                      )}
                     </CardContent>
                   </Card>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
         </>
@@ -308,4 +328,3 @@ export default function RetroInfoInterface() {
     </div>
   );
 }
-
