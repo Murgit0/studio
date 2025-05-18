@@ -52,9 +52,8 @@ export async function performWebSearch(input: PerformWebSearchInput): Promise<Pe
 async function performWebSearchToolHandler(input: PerformWebSearchInput): Promise<PerformWebSearchOutput> {
   const googleApiKey = process.env.SEARCH_API_KEY;
   const googleSearchEngineId = process.env.SEARCH_ENGINE_ID;
-  // API Keys for other image services - to be set in environment variables
-  const unsplashApiKey = process.env.UNSPLASH_API_KEY;
   const pexelsApiKey = process.env.PEXELS_API_KEY;
+  const unsplashApiKey = process.env.UNSPLASH_API_KEY; // Keep for potential future use
 
 
   if (!googleApiKey) {
@@ -86,16 +85,16 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
     const data = await response.json();
 
     const results: WebSearchResultItem[] = await Promise.all(data.items?.map(async (item: any): Promise<WebSearchResultItem> => {
-      let imageUrl = item.pagemap?.cse_thumbnail?.[0]?.src || item.pagemap?.cse_image?.[0]?.src;
+      let imageUrl: string | undefined;
       let imagePhotographerName: string | undefined;
       let imagePhotographerUrl: string | undefined;
-      let imageSourcePlatform: string | undefined = imageUrl ? "Google Images" : undefined; // Default if from Google
-      let imageSourceUrl: string | undefined = imageUrl ? item.link : undefined; // Default if from Google
+      let imageSourcePlatform: string | undefined;
+      let imageSourceUrl: string | undefined;
 
-      // If no image from Google and Pexels API key is available, try Pexels
-      if (!imageUrl && pexelsApiKey) {
+      // --- Primary Image Fetch: Pexels ---
+      if (pexelsApiKey) {
         try {
-          console.log(`Attempting to fetch image from Pexels for "${item.title}" as no Google image found.`);
+          console.log(`Attempting to fetch image from Pexels for "${item.title}" as primary source.`);
           const pexelsResponse = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(item.title)}&per_page=1`, { 
             headers: { Authorization: pexelsApiKey }
           });
@@ -117,38 +116,62 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
             console.error(`Pexels API request failed for "${item.title}" with status ${pexelsResponse.status}: ${pexelsError}`);
           }
         } catch (e) { 
-          console.error("Error fetching from Pexels:", e); 
+          console.error(`Error fetching from Pexels for "${item.title}":`, e); 
+        }
+      } else {
+        console.warn("PEXELS_API_KEY not set. Skipping Pexels image search for item:", item.title);
+      }
+
+      // --- Fallback Image Fetch: Google Custom Search pagemap ---
+      if (!imageUrl) { // Only if Pexels didn't provide an image
+        const googleImageUrl = item.pagemap?.cse_thumbnail?.[0]?.src || item.pagemap?.cse_image?.[0]?.src;
+        if (googleImageUrl) {
+          imageUrl = googleImageUrl;
+          imageSourcePlatform = "Google Images"; // Default attribution if from Google
+          imageSourceUrl = item.link; // Default attribution if from Google
+          // Note: Google images often lack direct photographer attribution.
+          console.log(`Using image from Google pagemap for "${item.title}" as Pexels fallback.`);
         }
       }
       
-      // Conceptual: If still no image (or if Pexels failed) and Unsplash API key is available, try Unsplash
-      if (!imageUrl && unsplashApiKey) {
-        try {
-          console.log(`Conceptual: Would attempt to fetch image from Unsplash for "${item.title}" if no Google/Pexels image found.`);
-          // const unsplashImageResponse = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(item.title)}&per_page=1&client_id=${unsplashApiKey}`);
-          // if (unsplashImageResponse.ok) {
-          //   const unsplashData = await unsplashImageResponse.json();
-          //   if (unsplashData.results && unsplashData.results.length > 0) {
-          //     const photo = unsplashData.results[0];
-          //     imageUrl = photo.urls.small;
-          //     imagePhotographerName = photo.user.name;
-          //     imagePhotographerUrl = photo.user.links.html;
-          //     imageSourcePlatform = "Unsplash";
-          //     imageSourceUrl = photo.links.html;
-          //     // Remember to call Unsplash's download endpoint if user "uses" the photo: photo.links.download_location
-          //   }
-          // }
-        } catch (e) { console.error("Error conceptualizing Unsplash fetch:", e); }
-      }
+      // --- Conceptual Fallback: Unsplash (if Pexels and Google fail) ---
+      // if (!imageUrl && unsplashApiKey) {
+      //   try {
+      //     console.log(`Conceptual: Attempting to fetch image from Unsplash for "${item.title}" as further fallback.`);
+      //     const unsplashQuery = item.title; // Or input.query for broader search
+      //     const unsplashResponse = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(unsplashQuery)}&per_page=1&client_id=${unsplashApiKey}`);
+      //     if (unsplashResponse.ok) {
+      //       const unsplashData = await unsplashResponse.json();
+      //       if (unsplashData.results && unsplashData.results.length > 0) {
+      //         const photo = unsplashData.results[0];
+      //         imageUrl = photo.urls.regular; // Or .small, .thumb
+      //         imagePhotographerName = photo.user.name;
+      //         imagePhotographerUrl = photo.user.links.html;
+      //         imageSourcePlatform = "Unsplash";
+      //         imageSourceUrl = photo.links.html;
+      //         // Important: Unsplash requires triggering a download endpoint if the image is "used": photo.links.download_location
+      //         // This is not implemented here as "use" is not defined in this context.
+      //         console.log(`Found image on Unsplash for "${item.title}": ${imageUrl}`);
+      //       } else {
+      //         console.log(`No image found on Unsplash for "${item.title}".`);
+      //       }
+      //     } else {
+      //       const unsplashError = await unsplashResponse.text();
+      //       console.error(`Unsplash API request failed for "${item.title}" with status ${unsplashResponse.status}: ${unsplashError}`);
+      //     }
+      //   } catch (e) { 
+      //     console.error(`Error fetching from Unsplash for "${item.title}":`, e);
+      //   }
+      // }
       
       return {
         title: item.title,
         link: item.link,
         snippet: item.snippet,
-        imageUrl: imageUrl || `https://placehold.co/150x100.png?text=${encodeURIComponent(item.title.substring(0,10))}`,
+        imageUrl: imageUrl || `https://placehold.co/150x100.png?text=${encodeURIComponent(item.title.substring(0,10))}`, // Fallback to placeholder
         imagePhotographerName,
         imagePhotographerUrl,
-        imageSourcePlatform: imageUrl ? (imageSourcePlatform || "Source") : undefined, // Ensure platform name if image exists
+        imageSourcePlatform: imageUrl ? (imageSourcePlatform || "Source") : undefined,
         imageSourceUrl,
       };
     }) || []);
@@ -201,7 +224,7 @@ function getMockSearchResults(query: string, providerHint?: string): PerformWebS
 export const performWebSearchTool = ai.defineTool(
   {
     name: 'performWebSearch',
-    description: 'Performs a web search for the given query and returns a list of results including title, link, snippet, and optionally an image URL with attribution.',
+    description: 'Performs a web search for the given query and returns a list of results including title, link, snippet, and an image URL (primarily from Pexels if available) with attribution.',
     inputSchema: PerformWebSearchInputSchema, 
     outputSchema: PerformWebSearchOutputSchema, 
   },
