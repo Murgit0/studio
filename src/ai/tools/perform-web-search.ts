@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview A tool for performing web searches.
+ * @fileOverview A tool for performing web searches and fetching related images.
  *
  * - performWebSearch - A function that wraps the tool to fetch search results.
  * - PerformWebSearchInput - The input type for the performWebSearch function.
@@ -92,10 +92,39 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
       let imageSourcePlatform: string | undefined = imageUrl ? "Google Images" : undefined; // Default if from Google
       let imageSourceUrl: string | undefined = imageUrl ? item.link : undefined; // Default if from Google
 
-      // Conceptual: If no image from Google, or to use an alternative provider for images:
+      // If no image from Google and Pexels API key is available, try Pexels
+      if (!imageUrl && pexelsApiKey) {
+        try {
+          console.log(`Attempting to fetch image from Pexels for "${item.title}" as no Google image found.`);
+          const pexelsResponse = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(item.title)}&per_page=1`, { 
+            headers: { Authorization: pexelsApiKey }
+          });
+          if (pexelsResponse.ok) {
+            const pexelsData = await pexelsResponse.json();
+            if (pexelsData.photos && pexelsData.photos.length > 0) {
+              const photo = pexelsData.photos[0];
+              imageUrl = photo.src.medium; // or other sizes like .large, .original
+              imagePhotographerName = photo.photographer;
+              imagePhotographerUrl = photo.photographer_url;
+              imageSourcePlatform = "Pexels";
+              imageSourceUrl = photo.url;
+              console.log(`Found image on Pexels for "${item.title}": ${imageUrl}`);
+            } else {
+              console.log(`No image found on Pexels for "${item.title}".`);
+            }
+          } else {
+            const pexelsError = await pexelsResponse.text();
+            console.error(`Pexels API request failed for "${item.title}" with status ${pexelsResponse.status}: ${pexelsError}`);
+          }
+        } catch (e) { 
+          console.error("Error fetching from Pexels:", e); 
+        }
+      }
+      
+      // Conceptual: If still no image (or if Pexels failed) and Unsplash API key is available, try Unsplash
       if (!imageUrl && unsplashApiKey) {
         try {
-          console.log(`Conceptual: Would attempt to fetch image from Unsplash for "${item.title}" if no Google image found.`);
+          console.log(`Conceptual: Would attempt to fetch image from Unsplash for "${item.title}" if no Google/Pexels image found.`);
           // const unsplashImageResponse = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(item.title)}&per_page=1&client_id=${unsplashApiKey}`);
           // if (unsplashImageResponse.ok) {
           //   const unsplashData = await unsplashImageResponse.json();
@@ -110,23 +139,6 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
           //   }
           // }
         } catch (e) { console.error("Error conceptualizing Unsplash fetch:", e); }
-      }
-      if (!imageUrl && pexelsApiKey) {
-        try {
-          console.log(`Conceptual: Would attempt to fetch image from Pexels for "${item.title}" if no Google/Unsplash image found.`);
-          // const pexelsResponse = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(item.title)}&per_page=1`, { headers: { Authorization: pexelsApiKey }});
-          // if (pexelsResponse.ok) {
-          //   const pexelsData = await pexelsResponse.json();
-          //   if (pexelsData.photos && pexelsData.photos.length > 0) {
-          //     const photo = pexelsData.photos[0];
-          //     imageUrl = photo.src.medium; // or other sizes
-          //     imagePhotographerName = photo.photographer;
-          //     imagePhotographerUrl = photo.photographer_url;
-          //     imageSourcePlatform = "Pexels";
-          //     imageSourceUrl = photo.url;
-          //   }
-          // }
-        } catch (e) { console.error("Error conceptualizing Pexels fetch:", e); }
       }
       
       return {
