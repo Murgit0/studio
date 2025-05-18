@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from 'next/image';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -10,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { processSearchQuery, type SearchActionResult } from "@/app/actions";
-import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, Image as ImageIcon } from "lucide-react";
+import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
@@ -45,7 +46,7 @@ export default function RetroInfoInterface() {
           title: "Processing Issue",
           description: response.error,
         });
-      } else if (!response.answer?.answer && (!response.searchResults?.results || response.searchResults.results.length === 0) && !response.imageResult?.imageDataUri) {
+      } else if (!response.answer?.answer && (!response.searchResults?.results || response.searchResults.results.length === 0)) {
         toast({
           variant: "default",
           title: "No Specific Results",
@@ -155,46 +156,42 @@ export default function RetroInfoInterface() {
             </Card>
           )}
 
-          {searchResult.imageResult && searchResult.imageResult.imageDataUri && (
-            <Card className="border-primary shadow-lg shadow-primary/20">
-              <CardHeader>
-                <CardTitle className="text-2xl flex items-center gap-2"><ImageIcon className="h-6 w-6 text-accent"/> AI Generated Image</CardTitle>
-              </CardHeader>
-              <CardContent className="flex justify-center">
-                <img
-                  src={searchResult.imageResult.imageDataUri}
-                  alt={`AI generated for: ${form.getValues("query")}`}
-                  className="rounded-md border border-border shadow-md max-w-full md:max-w-xl h-auto"
-                  data-ai-hint="query generated"
-                />
-              </CardContent>
-            </Card>
-          )}
-
           {searchResult.searchResults && searchResult.searchResults.results && searchResult.searchResults.results.length > 0 && (
             <Card className="border-primary shadow-lg shadow-primary/20">
               <CardHeader>
                 <CardTitle className="text-2xl flex items-center gap-2"><ListTree className="h-6 w-6 text-accent"/> Search Results</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-6">
                 {searchResult.searchResults.results.map((item, index) => (
                   <Card key={index} className="bg-card/50 border-border/50 hover:border-accent transition-colors duration-150">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-lg">
-                        <a
-                          href={item.link} 
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary hover:text-accent hover:underline flex items-center gap-1 group"
-                        >
-                          {item.title}
-                          <ExternalLink className="h-4 w-4 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
-                        </a>
-                      </CardTitle>
-                       <CardDescription className="text-xs text-muted-foreground pt-1 break-all">{item.link}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm leading-relaxed">{item.snippet}</p>
+                    <CardContent className="pt-6 flex gap-4">
+                      {item.imageUrl && (
+                        <div className="relative w-24 h-24 md:w-32 md:h-32 shrink-0">
+                          <Image
+                            src={item.imageUrl}
+                            alt={`Image for ${item.title}`}
+                            layout="fill"
+                            objectFit="cover"
+                            className="rounded-md border border-border shadow-md"
+                            data-ai-hint="search result"
+                          />
+                        </div>
+                      )}
+                      <div className="flex-grow">
+                        <CardTitle className="text-lg mb-1">
+                          <a
+                            href={item.link} 
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:text-accent hover:underline flex items-center gap-1 group"
+                          >
+                            {item.title}
+                            <ExternalLink className="h-4 w-4 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
+                          </a>
+                        </CardTitle>
+                        <CardDescription className="text-xs text-muted-foreground pt-1 break-all mb-2">{item.link}</CardDescription>
+                        <p className="text-sm leading-relaxed">{item.snippet}</p>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
@@ -202,7 +199,7 @@ export default function RetroInfoInterface() {
             </Card>
           )}
           
-          {!isLoading && !searchResult.error && !searchResult.answer?.answer && (!searchResult.searchResults?.results || searchResult.searchResults.results.length === 0) && !searchResult.imageResult?.imageDataUri && (
+          {!isLoading && !searchResult.error && !searchResult.answer?.answer && (!searchResult.searchResults?.results || searchResult.searchResults.results.length === 0) && (
              <Card className="border-primary shadow-lg shadow-primary/20">
               <CardHeader>
                 <CardTitle className="text-2xl flex items-center gap-2"><Search className="h-6 w-6 text-accent"/> No Specific Results</CardTitle>

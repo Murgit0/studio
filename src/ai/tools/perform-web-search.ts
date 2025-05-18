@@ -23,6 +23,7 @@ const WebSearchResultItemSchema = z.object({
   title: z.string().describe('The title of the search result.'),
   link: z.string().describe('The URL of the search result.'),
   snippet: z.string().describe('A brief snippet or description of the search result.'),
+  imageUrl: z.string().url().optional().describe('Optional URL of a relevant image for the search result.'),
 });
 // Type for internal use, not exported from 'use server' module
 type WebSearchResultItem = z.infer<typeof WebSearchResultItemSchema>;
@@ -46,15 +47,13 @@ export async function performWebSearch(input: PerformWebSearchInput): Promise<Pe
 // It contains the core logic for fetching search results.
 async function performWebSearchToolHandler(input: PerformWebSearchInput): Promise<PerformWebSearchOutput> {
   const apiKey = process.env.SEARCH_API_KEY;
-  const searchEngineId = process.env.SEARCH_ENGINE_ID; // Read directly from environment
+  const searchEngineId = process.env.SEARCH_ENGINE_ID; 
 
   if (!apiKey) {
     console.warn('SEARCH_API_KEY environment variable is not set. For production environments like Netlify, this must be configured in your site settings. Returning mock search results.');
     return getMockSearchResults(input.query);
   }
 
-  // Check if searchEngineId is missing or still the placeholder value
-  // The placeholder 'YOUR_SEARCH_ENGINE_ID' should not be used in production.
   if (!searchEngineId || searchEngineId === 'YOUR_SEARCH_ENGINE_ID') {
     let warningMessage = 'SEARCH_ENGINE_ID environment variable is not set.';
     if (searchEngineId === 'YOUR_SEARCH_ENGINE_ID') {
@@ -65,6 +64,10 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
   }
 
   try {
+    // When using Google Custom Search API, you can add &searchType=image to the query for image results
+    // or parse item.pagemap?.cse_image?.[0]?.src for images associated with web results.
+    // For now, this example primarily fetches web results.
+    // You'll need to adapt this to include image URLs from your chosen API's response structure.
     const response = await fetch(
       `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${searchEngineId}&q=${encodeURIComponent(input.query)}`
     );
@@ -80,36 +83,43 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
       title: item.title,
       link: item.link,
       snippet: item.snippet,
+      // Example for Google Custom Search API: item.pagemap?.cse_image?.[0]?.src
+      // You will need to adjust this based on your chosen Search API's response for images.
+      // For now, we'll use a placeholder if the API doesn't directly provide an obvious image URL
+      // in a simple way for this basic fetch.
+      imageUrl: item.pagemap?.cse_thumbnail?.[0]?.src || item.pagemap?.cse_image?.[0]?.src || `https://placehold.co/150x100.png?text=${encodeURIComponent(item.title.substring(0,10))}`,
     })) || [];
     
     return { results };
 
   } catch (error) {
     console.error('Error fetching real search results:', error);
-    // Fallback to mock data on error
     console.warn('Falling back to mock search results due to an error during API call.');
     return getMockSearchResults(input.query);
   }
 }
 
 function getMockSearchResults(query: string): PerformWebSearchOutput {
-  // Fallback to mock data if API key is missing or API call fails
+  const encodedQuery = encodeURIComponent(query);
   return {
     results: [
       {
         title: 'Mock Result 1 for: ' + query,
-        link: 'https://example.com/mock1',
+        link: `https://example.com/mock1?q=${encodedQuery}`,
         snippet: 'This is a mock search result snippet. Configure your Search API (SEARCH_API_KEY and SEARCH_ENGINE_ID in environment variables) for real results.',
+        imageUrl: `https://placehold.co/150x100.png?text=Mock1`,
       },
       {
         title: 'Mock Result 2 for: ' + query,
-        link: 'https://example.com/mock2',
+        link: `https://example.com/mock2?q=${encodedQuery}`,
         snippet: 'Another mock snippet. Ensure environment variables are set for your chosen Search API.',
+        imageUrl: `https://placehold.co/150x100.png?text=Mock2`,
       },
       {
         title: `More about "${query}" (Mock)`,
         link: `https://en.wikipedia.org/wiki/${encodeURIComponent(query.replace(/\s+/g, '_'))}`,
         snippet: `This is a mock Wikipedia link for ${query}. Real results require proper API configuration via environment variables.`,
+        imageUrl: `https://placehold.co/150x100.png?text=Wiki`,
       }
     ],
   };
@@ -119,9 +129,9 @@ function getMockSearchResults(query: string): PerformWebSearchOutput {
 export const performWebSearchTool = ai.defineTool(
   {
     name: 'performWebSearch',
-    description: 'Performs a web search for the given query and returns a list of results including title, link, and snippet.',
-    inputSchema: PerformWebSearchInputSchema, // Uses internal schema
-    outputSchema: PerformWebSearchOutputSchema, // Uses internal schema
+    description: 'Performs a web search for the given query and returns a list of results including title, link, snippet, and optionally an image URL.',
+    inputSchema: PerformWebSearchInputSchema, 
+    outputSchema: PerformWebSearchOutputSchema, 
   },
   performWebSearchToolHandler
 );
