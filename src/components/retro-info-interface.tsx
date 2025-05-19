@@ -1,5 +1,4 @@
 
-// src/components/retro-info-interface.tsx
 "use client";
 
 import { useState } from "react";
@@ -11,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { processSearchQuery, type SearchActionResult } from "@/app/actions";
+import { processSearchQuery, type SearchActionResult, type ImageResultItem as ActionImageResultItem } from "@/app/actions";
 import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -62,7 +61,7 @@ export default function RetroInfoInterface() {
     } catch (error) {
       console.error("Submission error:", error);
       const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
-      setSearchResult({ error: errorMessage }); 
+      setSearchResult({ error: errorMessage });
       toast({
         variant: "destructive",
         title: "Submission Error",
@@ -73,8 +72,7 @@ export default function RetroInfoInterface() {
     }
   }
 
-  const fetchedImages = searchResult?.searchResults?.images || [];
-
+  const fetchedImages: ActionImageResultItem[] = searchResult?.searchResults?.images || [];
 
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-8">
@@ -147,7 +145,7 @@ export default function RetroInfoInterface() {
 
       {searchResult && !searchResult.error && !isLoading && (
         <>
-          {(!searchResult.answer?.answer && 
+          {(!searchResult.answer?.answer &&
            (!searchResult.searchResults?.webResults || searchResult.searchResults.webResults.length === 0) &&
            fetchedImages.length === 0
           ) ? (
@@ -188,7 +186,7 @@ export default function RetroInfoInterface() {
                             <div className="flex-grow">
                               <CardTitle className="text-lg mb-1">
                                 <a
-                                  href={item.link} 
+                                  href={item.link}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="text-primary hover:text-accent hover:underline flex items-center gap-1 group"
@@ -219,51 +217,68 @@ export default function RetroInfoInterface() {
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-2 gap-4">
-                        {fetchedImages.map((img, index) => (
-                          <div key={index} className="group relative">
-                            <a href={img.sourceUrl || '#'} target="_blank" rel="noopener noreferrer" className="block">
-                              <div className="relative w-full aspect-square mb-1">
-                                <Image
-                                  src={img.imageUrl}
-                                  alt={img.altText || `Image related to query ${index + 1}`}
-                                  layout="fill"
-                                  objectFit="cover"
-                                  className="rounded-md border border-border shadow-md group-hover:opacity-80 transition-opacity"
-                                  data-ai-hint={img.imageUrl.includes('placehold.co') ? (form.getValues("query").split(' ').slice(0, 2).join(' ') || "query image") : (img.altText?.split(' ').slice(0,2).join(' ') || "api image")}
-                                />
-                              </div>
-                            </a>
-                             {(img.photographerName || img.sourcePlatform) && (
-                               <p className="text-[0.65rem] leading-tight text-muted-foreground/80 mt-1 text-center">
-                                {img.photographerName && (
-                                  <>
-                                    Photo by{' '}
-                                    {img.photographerUrl ? (
-                                      <a href={img.photographerUrl} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-accent">
-                                        {img.photographerName}
-                                      </a>
-                                    ) : (
-                                      img.photographerName
-                                    )}
-                                  </>
-                                )}
-                                {img.photographerName && img.sourcePlatform && ' on '}
-                                {!img.photographerName && img.sourcePlatform && 'Image via '}
-                                {img.sourcePlatform && (
-                                  <>
-                                    {img.sourceUrl ? (
-                                      <a href={img.sourceUrl} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-accent">
-                                        {img.sourcePlatform}
-                                      </a>
-                                    ) : (
-                                      img.sourcePlatform
-                                    )}
-                                  </>
-                                )}
-                              </p>
-                            )}
-                          </div>
-                        ))}
+                        {fetchedImages.map((img, index) => {
+                          let hint = "image";
+                          const currentQuery = form.getValues("query").split(' ').slice(0, 2).join(' ') || "image query";
+
+                          if (img.imageUrl.includes('placehold.co')) {
+                            hint = currentQuery;
+                          } else if (img.altText && !img.altText.toLowerCase().startsWith('image related to') && !img.altText.toLowerCase().includes(currentQuery.toLowerCase())) {
+                            hint = img.altText.split(' ').slice(0, 2).join(' ');
+                          } else {
+                            hint = currentQuery;
+                          }
+                          hint = hint || "image";
+                          hint = hint.split(' ').slice(0, 2).join(' ');
+
+                          return (
+                            <div key={index} className="group relative">
+                              <a href={img.sourceUrl || '#'} target="_blank" rel="noopener noreferrer" className="block">
+                                <div className="relative w-full aspect-square mb-1">
+                                  <Image
+                                    src={img.imageUrl}
+                                    alt={img.altText || `Image related to query ${index + 1}`}
+                                    fill
+                                    style={{ objectFit: 'cover' }}
+                                    className="rounded-md border border-border shadow-md group-hover:opacity-80 transition-opacity"
+                                    data-ai-hint={hint}
+                                    priority={index < 4} // Prioritize loading for first few images
+                                    sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw" // Basic responsive sizes
+                                  />
+                                </div>
+                              </a>
+                               {(img.photographerName || img.sourcePlatform) && (
+                                 <p className="text-[0.65rem] leading-tight text-muted-foreground/80 mt-1 text-center">
+                                  {img.photographerName && (
+                                    <>
+                                      Photo by{' '}
+                                      {img.photographerUrl ? (
+                                        <a href={img.photographerUrl} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-accent">
+                                          {img.photographerName}
+                                        </a>
+                                      ) : (
+                                        img.photographerName
+                                      )}
+                                    </>
+                                  )}
+                                  {img.photographerName && img.sourcePlatform && ' on '}
+                                  {!img.photographerName && img.sourcePlatform && 'Image via '}
+                                  {img.sourcePlatform && (
+                                    <>
+                                      {img.sourceUrl ? (
+                                        <a href={img.sourceUrl} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-accent">
+                                          {img.sourcePlatform}
+                                        </a>
+                                      ) : (
+                                        img.sourcePlatform
+                                      )}
+                                    </>
+                                  )}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </CardContent>
                   </Card>
@@ -276,3 +291,5 @@ export default function RetroInfoInterface() {
     </div>
   );
 }
+
+    
