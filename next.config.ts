@@ -11,17 +11,20 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      // When integrating real image search from services like Unsplash or Pexels,
+      {
+        protocol: 'https',
+        hostname: 'images.pexels.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        port: '',
+        pathname: '/**',
+      },
+      // When integrating real image search from other services,
       // you will need to add their image CDN hostnames here for next/image optimization.
-      // For example:
-      // {
-      //   protocol: 'https',
-      //   hostname: 'images.unsplash.com',
-      // },
-      // {
-      //   protocol: 'https',
-      //   hostname: 'images.pexels.com',
-      // },
     ],
   },
 };

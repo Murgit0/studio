@@ -35,7 +35,7 @@ const ImageResultItemSchema = z.object({
   sourcePlatform: z.string().optional().describe("The platform the image was sourced from (e.g., Pexels, Unsplash)."),
   sourceUrl: z.string().url().optional().describe("A URL to the image's page on the source platform for attribution."),
 });
-type ImageResultItem = z.infer<typeof ImageResultItemSchema>;
+export type ImageResultItem = z.infer<typeof ImageResultItemSchema>;
 
 
 // Schema for the tool's output
@@ -57,7 +57,7 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
   const googleApiKey = process.env.SEARCH_API_KEY;
   const googleSearchEngineId = process.env.SEARCH_ENGINE_ID;
   const pexelsApiKey = process.env.PEXELS_API_KEY;
-  const unsplashApiKey = process.env.UNSPLASH_API_KEY; // Keep for potential future use
+  const unsplashApiKey = process.env.UNSPLASH_API_KEY;
 
   let webResults: WebSearchResultItem[] = [];
   let images: ImageResultItem[] = [];
@@ -99,11 +99,11 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
     return getMockSearchResults(input.query); // Returns mock for both web and images
   }
 
-  // Fetch images from Pexels based on the main query
+  // Fetch images primarily from Pexels based on the main query
   if (pexelsApiKey && pexelsApiKey !== "YOUR_PEXELS_API_KEY_HERE") {
     try {
       console.log(`Attempting to fetch images from Pexels for query: "${input.query}"`);
-      const pexelsResponse = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(input.query)}&per_page=6`, { // Fetch up to 6 images
+      const pexelsResponse = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(input.query)}&per_page=6`, {
         headers: { Authorization: pexelsApiKey }
       });
       if (pexelsResponse.ok) {
@@ -132,7 +132,7 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
     console.warn("PEXELS_API_KEY not set or is a placeholder. Skipping Pexels image search. Mock images will be used if web search also fails or returns mocks.");
   }
   
-  // Conceptual: Fetch images from Unsplash if Pexels fails or isn't used, and Unsplash key is available
+  // Fallback to Unsplash if Pexels didn't return images and Unsplash key is available
   if (images.length === 0 && unsplashApiKey && unsplashApiKey !== "YOUR_UNSPLASH_API_KEY_HERE") {
     try {
       console.log(`Attempting to fetch images from Unsplash for query: "${input.query}" as Pexels fallback.`);
@@ -141,14 +141,12 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
         const unsplashData = await unsplashResponse.json();
         if (unsplashData.results && unsplashData.results.length > 0) {
           images = unsplashData.results.map((photo: any): ImageResultItem => ({
-            imageUrl: photo.urls.regular, // Or .small, .thumb
+            imageUrl: photo.urls.regular, 
             altText: photo.alt_description || photo.description || `Image related to ${input.query}`,
             photographerName: photo.user.name,
             photographerUrl: photo.user.links.html,
             sourcePlatform: "Unsplash",
             sourceUrl: photo.links.html,
-            // Important: Unsplash requires triggering a download endpoint if the image is "used": photo.links.download_location
-            // This is not implemented here as "use" is not defined in this context. Consider for future enhancements.
           }));
           console.log(`Found ${images.length} image(s) on Unsplash for "${input.query}".`);
         } else {
@@ -173,60 +171,53 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
   }
   
   // If no images were fetched from APIs, but we have web results, provide some placeholder images.
+  // This ensures the "Images" section can still show something if image APIs fail but web search worked.
   if (images.length === 0 && webResults.length > 0) {
-    console.log("No images fetched from Pexels or Unsplash, providing placeholder images.");
-    images = Array.from({ length: Math.min(webResults.length, 3) }).map((_, i) => ({
-        imageUrl: `https://placehold.co/300x200.png?text=${encodeURIComponent(input.query.substring(0,10))}-${i+1}`,
-        altText: `Placeholder image for ${input.query} ${i+1}`,
+    console.log("No images fetched from Pexels or Unsplash, providing 6 placeholder images.");
+    const safeQuery = input.query || "image";
+    images = Array.from({ length: 6 }).map((_, i) => ({
+        imageUrl: `https://placehold.co/300x200.png?text=${encodeURIComponent(safeQuery.substring(0,10))}-${i+1}`,
+        altText: `Placeholder image for ${safeQuery} ${i+1}`,
         sourcePlatform: "Placeholder",
         sourceUrl: `https://placehold.co/`
     }));
   }
 
-
+  console.log("Final images being returned by performWebSearchToolHandler:", JSON.stringify(images, null, 2));
   return { webResults, images };
 }
 
 function getMockSearchResults(query: string): PerformWebSearchOutput {
   const encodedQuery = encodeURIComponent(query);
+  const safeQuery = query || "mock";
   return {
     webResults: [
       {
-        title: `Mock Web Result 1 for: ${query}`,
+        title: `Mock Web Result 1 for: ${safeQuery}`,
         link: `https://example.com/mock-web1?q=${encodedQuery}`,
         snippet: `This is a mock web search result snippet. Configure your Search API (SEARCH_API_KEY and SEARCH_ENGINE_ID in environment variables) for real results.`,
       },
       {
-        title: `Mock Web Result 2 for: ${query}`,
+        title: `Mock Web Result 2 for: ${safeQuery}`,
         link: `https://example.com/mock-web2?q=${encodedQuery}`,
         snippet: `Another mock web snippet. Ensure environment variables are set for your chosen Search API.`,
       }
     ],
-    images: [
-      {
-        imageUrl: `https://placehold.co/300x200.png?text=MockImg1-${encodedQuery.substring(0,5)}`,
-        altText: `Mock Image 1 for ${query}`,
-        photographerName: "Mock Artist 1",
-        photographerUrl: "https://example.com/artist1",
+    images: Array.from({ length: 2 }).map((_, i) => ({ // Keep mock images to 2 for brevity in mock mode
+        imageUrl: `https://placehold.co/300x200.png?text=Mock-${safeQuery.substring(0,5)}-${i+1}`,
+        altText: `Mock Image ${i+1} for ${safeQuery}`,
+        photographerName: `Mock Artist ${i+1}`,
+        photographerUrl: `https://example.com/artist${i+1}`,
         sourcePlatform: "MockPlatform",
-        sourceUrl: "https://example.com/mock1/image_source",
-      },
-      {
-        imageUrl: `https://placehold.co/300x200.png?text=MockImg2-${encodedQuery.substring(0,5)}`,
-        altText: `Mock Image 2 for ${query}`,
-        photographerName: "Mock Artist 2",
-        photographerUrl: "https://example.com/artist2",
-        sourcePlatform: "MockPlatform",
-        sourceUrl: "https://example.com/mock2/image_source",
-      }
-    ]
+        sourceUrl: `https://example.com/mock${i+1}/image_source`,
+      }))
   };
 }
 
 export const performWebSearchTool = ai.defineTool(
   {
     name: 'performWebSearch',
-    description: 'Performs a web search for the given query and returns a list of text results. Also fetches related images from Pexels or Unsplash based on the query.',
+    description: 'Performs a web search for the given query and returns a list of text results. Also fetches related images primarily from Pexels or Unsplash based on the query.',
     inputSchema: PerformWebSearchInputSchema,
     outputSchema: PerformWebSearchOutputSchema,
   },
