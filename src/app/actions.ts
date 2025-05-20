@@ -5,7 +5,7 @@
 import { z } from "zod";
 
 import { generateAnswer } from "@/ai/flows/generate-answer-flow";
-import { generateSearchResults as fetchWebAndImageResults } from "@/ai/flows/generate-search-results-flow"; // Renamed import for clarity
+import { generateSearchResults as fetchWebAndImageResults } from "@/ai/flows/generate-search-results-flow";
 
 // --- Schemas and Types for generate-answer-flow ---
 const GenerateAnswerInputSchema = z.object({
@@ -19,7 +19,7 @@ const GenerateAnswerOutputSchema = z.object({
 export type GenerateAnswerOutput = z.infer<typeof GenerateAnswerOutputSchema>;
 // --- End Schemas and Types from generate-answer-flow.ts ---
 
-// --- Schemas and Types for generate-search-results-flow (now fetchWebAndImageResults) ---
+// --- Schemas and Types for fetchWebAndImageResults (formerly generate-search-results-flow) ---
 const GenerateSearchResultsInputSchema = z.object({
   query: z.string().describe('The user query for which to generate search results.'),
 });
@@ -28,7 +28,7 @@ export type GenerateSearchResultsInput = z.infer<typeof GenerateSearchResultsInp
 // Schema for a single web search result item (text-focused)
 const WebSearchResultItemSchema = z.object({
   title: z.string().describe('The title of the search result.'),
-  link: z.string().describe('The URL of the search result.'), // Kept as string() for flexibility from LLM
+  link: z.string().describe('The URL of the search result.'),
   snippet: z.string().describe('A short, descriptive snippet for the search result.'),
 });
 
@@ -41,11 +41,11 @@ const ImageResultItemSchema = z.object({
   sourcePlatform: z.string().optional().describe("The platform the image was sourced from (e.g., Pexels, Unsplash, Google)."),
   sourceUrl: z.string().url().optional().describe("A URL to the image's page on the source platform for attribution or the web page it was found on."),
 });
-export type ImageResultItem = z.infer<typeof ImageResultItemSchema>; // Exporting type for UI
+export type ImageResultItem = z.infer<typeof ImageResultItemSchema>;
 
 const GenerateSearchResultsOutputSchema = z.object({
-  webResults: z.array(WebSearchResultItemSchema).describe('An array of web search results.'),
-  images: z.array(ImageResultItemSchema).optional().describe('An array of image search results.'),
+  webResults: z.array(WebSearchResultItemSchema).max(10).describe('An array of web search results (max 10).'),
+  images: z.array(ImageResultItemSchema).max(20).optional().describe('An array of image search results (max 20).'),
 });
 export type GenerateSearchResultsOutput = z.infer<typeof GenerateSearchResultsOutputSchema>;
 // --- End Schemas and Types from generate-search-results-flow.ts ---
@@ -58,7 +58,7 @@ export type ProcessSearchQueryInput = z.infer<typeof processSearchQueryInputSche
 
 export interface SearchActionResult {
   answer?: GenerateAnswerOutput;
-  searchResults?: GenerateSearchResultsOutput; // This will contain both webResults and images
+  searchResults?: GenerateSearchResultsOutput;
   error?: string;
 }
 
@@ -74,10 +74,9 @@ export async function processSearchQuery(
   const { query } = validatedInput.data;
 
   try {
-    // Run all flows in parallel
     const [answerResult, searchResultsCombined] = await Promise.allSettled([
       generateAnswer({ query }),
-      fetchWebAndImageResults({ query }) // This now fetches both web text and images separately
+      fetchWebAndImageResults({ query })
     ]);
 
     const answer = answerResult.status === 'fulfilled' ? answerResult.value : undefined;
@@ -89,7 +88,6 @@ export async function processSearchQuery(
         parsedSearchResults = validation.data;
       } else {
         console.error("Search results format error (actions.ts):", validation.error.flatten());
-         // Graceful degradation: try to extract what we can if parsing fails
          const rawData = searchResultsCombined.value as any;
          parsedSearchResults = { 
            webResults: Array.isArray(rawData?.webResults) ? rawData.webResults : [], 
@@ -111,12 +109,9 @@ export async function processSearchQuery(
       const reasonText = searchResultsCombined.reason instanceof Error ? searchResultsCombined.reason.message : String(searchResultsCombined.reason);
       errorMessages.push(`Search Results generation failed: ${reasonText.substring(0,150)}`);
     } else if (searchResultsCombined.status === 'fulfilled' && !GenerateSearchResultsOutputSchema.safeParse(searchResultsCombined.value).success) {
-      // Error logged above during parsing attempt
       errorMessages.push(`Search Results format error. Check tool output logs.`);
     }
     
-    // If no AI answer AND no web results AND no images, AND there were errors, then report the error.
-    // Otherwise, if there's at least some content, we might show it with a partial error message.
     if (!answer && 
         (!parsedSearchResults || 
          ((!parsedSearchResults.webResults || parsedSearchResults.webResults.length === 0) && 
@@ -137,3 +132,4 @@ export async function processSearchQuery(
     return { error: `An error occurred while processing your request: ${errorMessage.substring(0,200)}` };
   }
 }
+
