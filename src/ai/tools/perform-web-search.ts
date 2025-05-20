@@ -6,7 +6,6 @@
  * - performWebSearch - A function that wraps the tool to fetch search results and images.
  * - PerformWebSearchInput - The input type for the performWebSearch function.
  * - PerformWebSearchOutput - The return type for the performWebSearch function.
- * - performWebSearchTool - The Genkit tool definition.
  */
 
 import { ai } from '@/ai/genkit';
@@ -27,7 +26,7 @@ const WebSearchResultItemSchema = z.object({
 type WebSearchResultItem = z.infer<typeof WebSearchResultItemSchema>;
 
 // Schema for a single image result item
-export const ImageResultItemSchema = z.object({
+const ImageResultItemSchema = z.object({
   imageUrl: z.string().url().describe('URL of the image.'),
   altText: z.string().optional().describe('Alt text for the image.'),
   photographerName: z.string().optional().describe("The name of the image's photographer for attribution."),
@@ -67,7 +66,13 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
 
   // 1. Fetch Web Results (Text) from Google Custom Search
   if (!googleApiKey) {
-    console.warn('SEARCH_API_KEY (for Google Custom Search) environment variable is not set. For production environments like Netlify, this must be configured in your site settings. Returning mock results for web content.');
+    let warningMessage = 'SEARCH_API_KEY (for Google Custom Search) environment variable is not set.';
+    if (process.env.NODE_ENV === 'production') {
+      warningMessage += ' For production environments like Netlify, this must be configured in your site settings.';
+    } else {
+      warningMessage += ' Please set it in your .env file for local development.';
+    }
+    console.warn(`${warningMessage} Returning mock results for web content.`);
     return getMockSearchResults(input.query); // Early exit with full mocks if no Google key
   }
   if (!googleSearchEngineId || googleSearchEngineId === 'YOUR_SEARCH_ENGINE_ID') {
@@ -75,7 +80,12 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
     if (googleSearchEngineId === 'YOUR_SEARCH_ENGINE_ID') {
       warningMessage = 'SEARCH_ENGINE_ID environment variable is using a placeholder value "YOUR_SEARCH_ENGINE_ID".';
     }
-    console.warn(`${warningMessage} For production environments like Netlify, a valid Search Engine ID must be configured in your site settings. Returning mock results for web content.`);
+    if (process.env.NODE_ENV === 'production') {
+      warningMessage += ' For production environments like Netlify, a valid Search Engine ID must be configured in your site settings.';
+    } else {
+      warningMessage += ' Please set it for local development (e.g., in your .env file or by creating a Programmable Search Engine in Google Cloud).';
+    }
+    console.warn(`${warningMessage} Returning mock results for web content.`);
     return getMockSearchResults(input.query); // Early exit with full mocks
   }
 
@@ -114,14 +124,12 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
       });
       if (pexelsResponse.ok) {
         const pexelsData = await pexelsResponse.json();
-        // console.log("Pexels API response:", JSON.stringify(pexelsData, null, 2)); // For debugging
         if (pexelsData.photos && pexelsData.photos.length > 0) {
           pexelsData.photos.forEach((photo: any) => {
             if (images.length >= MAX_IMAGES_TO_FETCH) return;
-            // Ensure unique image based on medium URL
             if (photo.src?.medium && !images.find(img => img.imageUrl === photo.src.medium)) {
                  images.push({
-                    imageUrl: photo.src.medium, // Using 'medium' for a reasonable size
+                    imageUrl: photo.src.medium,
                     altText: photo.alt || `Image by ${photo.photographer} on Pexels`,
                     photographerName: photo.photographer,
                     photographerUrl: photo.photographer_url,
@@ -154,13 +162,12 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
       const cseThumbnail = item.pagemap?.cse_thumbnail?.[0]?.src;
       const imageUrl = cseImage || cseThumbnail;
       
-      if (imageUrl && !images.find(img => img.imageUrl === imageUrl)) { // Ensure unique
-        // console.log(`Found Google image: ${imageUrl} for item: ${item.title}`); // For debugging
+      if (imageUrl && !images.find(img => img.imageUrl === imageUrl)) { 
         images.push({
           imageUrl: imageUrl,
           altText: item.pagemap?.metatags?.[0]?.['og:image:alt'] || item.pagemap?.metatags?.[0]?.['twitter:image:alt'] || `Image from ${item.title}`,
           sourcePlatform: "Google",
-          sourceUrl: item.link, // Link to the page where the image was found
+          sourceUrl: item.link, 
         });
       }
     }
@@ -210,7 +217,7 @@ function getMockSearchResults(query: string): PerformWebSearchOutput {
   };
 }
 
-export const performWebSearchTool = ai.defineTool(
+const performWebSearchTool = ai.defineTool(
   {
     name: 'performWebSearch',
     description: 'Performs a web search for text results using Google Custom Search. Fetches related images, prioritizing Pexels, then supplementing with Google Images if Pexels provides too few.',
@@ -219,5 +226,3 @@ export const performWebSearchTool = ai.defineTool(
   },
   performWebSearchToolHandler
 );
-
-    
