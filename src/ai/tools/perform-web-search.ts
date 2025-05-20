@@ -12,6 +12,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { search as duckDuckGoImageSearch } from 'duckduckgo-images-api';
+import { search as duckDuckScrapeSearch } from 'duck-duck-scrape';
 
 // Schema for the tool's input
 const PerformWebSearchInputSchema = z.object({
@@ -68,79 +69,99 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
   let images: ImageResultItem[] = [];
   let googleSearchData: any = null;
 
-  // 1. Fetch Web Results from Google Custom Search
-  if (!googleApiKey) {
-    let warningMessage = 'SEARCH_API_KEY (for Google Custom Search) environment variable is not set.';
-    if (process.env.NODE_ENV === 'production') {
-      warningMessage += ' For production environments like Netlify, this must be configured in your site settings.';
-    } else {
-      warningMessage += ' Please set it in your .env file for local development.';
-    }
-    console.warn(`${warningMessage} Returning mock results for web content and images.`);
-    return getMockSearchResults(input.query); // Early exit with full mocks
-  }
-  if (!googleSearchEngineId || googleSearchEngineId === 'YOUR_SEARCH_ENGINE_ID') {
-    let warningMessage = 'SEARCH_ENGINE_ID (for Google Custom Search) environment variable is not set.';
-    if (googleSearchEngineId === 'YOUR_SEARCH_ENGINE_ID') {
-      warningMessage = 'SEARCH_ENGINE_ID environment variable is using a placeholder value "YOUR_SEARCH_ENGINE_ID".';
-    }
-    if (process.env.NODE_ENV === 'production') {
-      warningMessage += ' For production environments like Netlify, a valid Search Engine ID must be configured in your site settings.';
-    } else {
-      warningMessage += ' Please set it for local development (e.g., in your .env file or by creating a Programmable Search Engine in Google Cloud).';
-    }
-    console.warn(`${warningMessage} Returning mock results for web content and images.`);
-    return getMockSearchResults(input.query); // Early exit with full mocks
-  }
+  // 1. Fetch Web Results - Primary: Google Custom Search
+  if (googleApiKey && googleSearchEngineId && googleSearchEngineId !== 'YOUR_SEARCH_ENGINE_ID') {
+    try {
+      console.log(`Fetching web results from Google Custom Search for query: "${input.query}"`);
+      const response = await fetch(
+        `https://www.googleapis.com/customsearch/v1?key=${googleApiKey}&cx=${googleSearchEngineId}&q=${encodeURIComponent(input.query)}&num=${MAX_WEB_RESULTS}`
+      );
 
-  try {
-    console.log(`Fetching web results from Google Custom Search for query: "${input.query}"`);
-    const response = await fetch(
-      `https://www.googleapis.com/customsearch/v1?key=${googleApiKey}&cx=${googleSearchEngineId}&q=${encodeURIComponent(input.query)}&num=${MAX_WEB_RESULTS}`
-    );
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error(`Google Search API request failed with status ${response.status}: ${errorData}`);
-      throw new Error(`Google Search API request failed with status ${response.status}. Check server logs for details. Ensure your SEARCH_API_KEY and SEARCH_ENGINE_ID are correct and the Custom Search API is enabled for your project.`);
-    }
-    googleSearchData = await response.json();
-
-    webResults = googleSearchData.items?.map((item: any): WebSearchResultItem => ({
-      title: item.title,
-      link: item.link,
-      snippet: item.snippet,
-    })) || [];
-    console.log(`Fetched ${webResults.length} web result(s) from Google.`);
-
-    // 2. Extract images from Google Search Data (Primary Image Source)
-    if (googleSearchData?.items) {
-      for (const item of googleSearchData.items) {
-        if (images.length >= MAX_IMAGES_TO_FETCH) break;
-        const cseImage = item.pagemap?.cse_image?.[0]?.src;
-        const cseThumbnail = item.pagemap?.cse_thumbnail?.[0]?.src;
-        const imageUrl = cseImage || cseThumbnail;
-        
-        if (imageUrl && !images.find(img => img.imageUrl === imageUrl)) { 
-          images.push({
-            imageUrl: imageUrl,
-            altText: item.pagemap?.metatags?.[0]?.['og:image:alt'] || item.pagemap?.metatags?.[0]?.['twitter:image:alt'] || `Image from ${item.title}`,
-            sourcePlatform: "Google",
-            sourceUrl: item.link, 
-          });
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error(`Google Search API request failed with status ${response.status}: ${errorData}`);
+        // Don't throw, allow fallback to DuckDuckScrape
+      } else {
+        googleSearchData = await response.json();
+        if (googleSearchData.items && googleSearchData.items.length > 0) {
+          webResults = googleSearchData.items.map((item: any): WebSearchResultItem => ({
+            title: item.title,
+            link: item.link,
+            snippet: item.snippet,
+          }));
+          console.log(`Fetched ${webResults.length} web result(s) from Google.`);
+        } else {
+          console.log(`No web results found on Google for "${input.query}".`);
         }
       }
-      console.log(`Extracted ${images.length} image(s) from Google Custom Search results.`);
+    } catch (error) {
+      console.error('Error fetching web search results from Google:', error);
+      // Error occurred, webResults will be empty, allowing fallback.
     }
+  } else {
+    let warningMessage = 'Google Custom Search not configured: ';
+    if (!googleApiKey) warningMessage += 'SEARCH_API_KEY missing. ';
+    if (!googleSearchEngineId || googleSearchEngineId === 'YOUR_SEARCH_ENGINE_ID') warningMessage += 'SEARCH_ENGINE_ID missing or placeholder. ';
+    console.warn(`${warningMessage}Will attempt DuckDuckScrape for web results.`);
+  }
 
-  } catch (error) {
-    console.error('Error fetching real web search results from Google:', error);
-    console.warn('Falling back to mock search results for web content due to an error during Google API call. Will attempt Pexels and DuckDuckGo for images if configured.');
-    webResults = getMockSearchResults(input.query).webResults; // Use mock web results
+  // 2. Fetch Web Results - Fallback: DuckDuckScrape if Google fails or returns no results
+  if (webResults.length === 0) {
+    try {
+      console.log(`Google Search failed or returned no results. Fetching web results from DuckDuckScrape for query: "${input.query}"`);
+      const ddgWebResults = await duckDuckScrapeSearch(input.query, {
+        safeSearch: 'moderate', // Or 'off', 'strict'
+        offset: 0, // For pagination if needed, though we'll limit
+      });
+
+      if (ddgWebResults && ddgWebResults.results && ddgWebResults.results.length > 0) {
+        webResults = ddgWebResults.results
+          .slice(0, MAX_WEB_RESULTS)
+          .map((item: any): WebSearchResultItem => ({
+            title: item.title,
+            link: item.url, // duck-duck-scrape uses 'url'
+            snippet: item.description, // duck-duck-scrape uses 'description'
+          }));
+        console.log(`Fetched ${webResults.length} web result(s) from DuckDuckScrape.`);
+      } else {
+        console.log(`No web results found on DuckDuckScrape for "${input.query}".`);
+      }
+    } catch (error) {
+      console.error('Error fetching web search results from DuckDuckScrape:', error);
+      // If DuckDuckScrape also fails, webResults remains empty.
+    }
+  }
+  
+  // If still no web results after Google and DuckDuckScrape, use mock web results
+  if (webResults.length === 0) {
+      console.warn('No web results from Google or DuckDuckScrape. Returning mock web results.');
+      webResults = getMockSearchResults(input.query).webResults;
   }
 
 
-  // 3. Pexels as Fallback if not enough images from Google
+  // 3. Image Fetching Logic (Prioritizing Google, then Pexels, then DuckDuckGo Images)
+
+  // 3a. Extract images from Google Search Data (if available and web results came from Google)
+  if (googleSearchData?.items) {
+    for (const item of googleSearchData.items) {
+      if (images.length >= MAX_IMAGES_TO_FETCH) break;
+      const cseImage = item.pagemap?.cse_image?.[0]?.src;
+      const cseThumbnail = item.pagemap?.cse_thumbnail?.[0]?.src;
+      const imageUrl = cseImage || cseThumbnail;
+      
+      if (imageUrl && !images.find(img => img.imageUrl === imageUrl)) { 
+        images.push({
+          imageUrl: imageUrl,
+          altText: item.pagemap?.metatags?.[0]?.['og:image:alt'] || item.pagemap?.metatags?.[0]?.['twitter:image:alt'] || `Image from ${item.title}`,
+          sourcePlatform: "Google",
+          sourceUrl: item.link, 
+        });
+      }
+    }
+    console.log(`Extracted ${images.length} image(s) from Google Custom Search results.`);
+  }
+
+  // 3b. Pexels as Fallback if not enough images from Google
   if (images.length < MAX_IMAGES_TO_FETCH && pexelsApiKey && pexelsApiKey !== "YOUR_PEXELS_API_KEY_HERE") {
     const imagesNeededFromPexels = MAX_IMAGES_TO_FETCH - images.length;
     try {
@@ -181,47 +202,42 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
      console.warn("PEXELS_API_KEY not set or is a placeholder. Skipping Pexels image search as fallback.");
   }
 
-  // 4. DuckDuckGo as a further fallback if still not enough images
+  // 3c. DuckDuckGo Images as a further fallback if still not enough images
   if (images.length < MAX_IMAGES_TO_FETCH) {
     const imagesNeededFromDDG = MAX_IMAGES_TO_FETCH - images.length;
     try {
-      console.log(`Attempting to fetch up to ${imagesNeededFromDDG} image(s) from DuckDuckGo for query: "${input.query}"`);
-      // The duckduckgo-images-api returns a promise that resolves to an array of results
-      // We need to handle the iterations parameter. Let's aim for enough iterations to get the images.
-      // Each iteration fetches a "page" of results, typically 30-100.
-      // Let's try 1 iteration first. If more advanced logic is needed, it can be added.
-      const ddgResults = await duckDuckGoImageSearch({
+      console.log(`Attempting to fetch up to ${imagesNeededFromDDG} image(s) from DuckDuckGo Images for query: "${input.query}"`);
+      const ddgImageResults = await duckDuckGoImageSearch({
         query: input.query,
-        moderate: true, // Keep moderate filter on
-        iterations: 1, // Start with 1 page of results
+        moderate: true,
+        iterations: 1, 
         retries: 2,
       });
 
-      if (ddgResults && ddgResults.length > 0) {
+      if (ddgImageResults && ddgImageResults.length > 0) {
         let ddgImagesAdded = 0;
-        for (const result of ddgResults) {
+        for (const result of ddgImageResults) {
           if (images.length >= MAX_IMAGES_TO_FETCH) break;
           if (result.image && !images.find(img => img.imageUrl === result.image)) {
             images.push({
               imageUrl: result.image,
               altText: result.title || `Image from DuckDuckGo for ${input.query}`,
               sourcePlatform: "DuckDuckGo",
-              sourceUrl: result.url, // This is the page URL where the image was found
+              sourceUrl: result.url, 
             });
             ddgImagesAdded++;
           }
         }
-        console.log(`Fetched and added ${ddgImagesAdded} image(s) from DuckDuckGo.`);
+        console.log(`Fetched and added ${ddgImagesAdded} image(s) from DuckDuckGo Images.`);
       } else {
-        console.log(`No images found on DuckDuckGo for "${input.query}" to supplement other sources.`);
+        console.log(`No images found on DuckDuckGo Images for "${input.query}" to supplement other sources.`);
       }
     } catch (e: any) {
-      console.error(`Error fetching from DuckDuckGo for query "${input.query}":`, e.message || e);
+      console.error(`Error fetching from DuckDuckGo Images for query "${input.query}":`, e.message || e);
     }
   }
 
-
-  // 5. Placeholders as a final resort if no images were fetched and web results exist
+  // 4. Placeholders as a final resort if no images were fetched and web results exist
   if (images.length === 0 && webResults.length > 0) {
     console.log("No images fetched from Google, Pexels, or DuckDuckGo. Providing placeholder images.");
     const safeQuery = input.query || "image";
@@ -232,6 +248,8 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
         sourceUrl: `https://placehold.co/`
     }));
   } else if (images.length === 0 && webResults.length === 0) {
+    // This case means no web results from Google or DDGScrape AND no real images found.
+    // So, get mock images from getMockSearchResults.
     console.warn("No web results and no real images, using mock images from getMockSearchResults.");
     images = getMockSearchResults(input.query).images || [];
   }
@@ -251,7 +269,7 @@ function getMockSearchResults(query: string): PerformWebSearchOutput {
     webResults: Array.from({ length: MAX_WEB_RESULTS }).map((_, i) => ({
       title: `Mock Web Result ${i + 1} for: ${safeQuery}`,
       link: `https://example.com/mock-web${i+1}?q=${encodedQuery}`,
-      snippet: `This is mock web search result snippet ${i+1}. Configure your Search API (SEARCH_API_KEY and SEARCH_ENGINE_ID in environment variables) for real results.`,
+      snippet: `This is mock web search result snippet ${i+1}. Configure your Search API (SEARCH_API_KEY and SEARCH_ENGINE_ID in environment variables) and/or DuckDuckScrape for real results.`,
     })),
     images: Array.from({ length: Math.min(MAX_IMAGES_TO_FETCH, 6) }).map((_, i) => ({ 
         imageUrl: `https://placehold.co/300x200.png?text=Mock-${safeQuery.substring(0,5)}-${i+1}`,
@@ -269,10 +287,9 @@ function getMockSearchResults(query: string): PerformWebSearchOutput {
 const performWebSearchTool = ai.defineTool(
   {
     name: 'performWebSearch',
-    description: 'Performs a web search for text results using Google Custom Search. Fetches related images, prioritizing images found within Google search results, then falling back to Pexels if insufficient images are found from Google, then DuckDuckGo. Provides placeholders if no images are sourced.',
+    description: 'Performs a web search for text results, primarily using Google Custom Search and falling back to DuckDuckScrape. Fetches related images, prioritizing images found within Google search results, then Pexels, then DuckDuckGo Images. Provides placeholders if no images are sourced.',
     inputSchema: PerformWebSearchInputSchema,
     outputSchema: PerformWebSearchOutputSchema,
   },
   performWebSearchToolHandler
 );
-
