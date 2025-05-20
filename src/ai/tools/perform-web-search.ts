@@ -32,8 +32,8 @@ const ImageResultItemSchema = z.object({
   altText: z.string().optional().describe('Alt text for the image.'),
   photographerName: z.string().optional().describe("The name of the image's photographer for attribution."),
   photographerUrl: z.string().url().optional().describe("A URL to the photographer's profile or source for attribution."),
-  sourcePlatform: z.string().optional().describe("The platform the image was sourced from (e.g., Pexels, Unsplash)."),
-  sourceUrl: z.string().url().optional().describe("A URL to the image's page on the source platform for attribution."),
+  sourcePlatform: z.string().optional().describe("The platform the image was sourced from (e.g., Pexels, Unsplash, Google)."),
+  sourceUrl: z.string().url().optional().describe("A URL to the image's page on the source platform for attribution or the web page it was found on."),
 });
 export type ImageResultItem = z.infer<typeof ImageResultItemSchema>;
 
@@ -52,6 +52,8 @@ export async function performWebSearch(input: PerformWebSearchInput): Promise<Pe
   return performWebSearchToolHandler(input);
 }
 
+const MAX_IMAGES_TO_FETCH = 6;
+
 // This is the handler function that the Genkit tool will execute.
 async function performWebSearchToolHandler(input: PerformWebSearchInput): Promise<PerformWebSearchOutput> {
   const googleApiKey = process.env.SEARCH_API_KEY;
@@ -64,21 +66,21 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
 
   // Fetch web results using Google Custom Search API
   if (!googleApiKey) {
-    console.warn('SEARCH_API_KEY (for Google Custom Search) environment variable is not set. For production environments like Netlify, this must be configured in your site settings. Returning mock web results.');
-    return getMockSearchResults(input.query); // Returns mock for both web and images
+    console.warn('SEARCH_API_KEY (for Google Custom Search) environment variable is not set. For production environments like Netlify, this must be configured in your site settings. Returning mock results.');
+    return getMockSearchResults(input.query);
   }
   if (!googleSearchEngineId || googleSearchEngineId === 'YOUR_SEARCH_ENGINE_ID') {
     let warningMessage = 'SEARCH_ENGINE_ID (for Google Custom Search) environment variable is not set.';
     if (googleSearchEngineId === 'YOUR_SEARCH_ENGINE_ID') {
       warningMessage = 'SEARCH_ENGINE_ID environment variable is using a placeholder value "YOUR_SEARCH_ENGINE_ID".';
     }
-    console.warn(`${warningMessage} For production environments like Netlify, a valid Search Engine ID must be configured in your site settings. Returning mock web results.`);
-    return getMockSearchResults(input.query); // Returns mock for both web and images
+    console.warn(`${warningMessage} For production environments like Netlify, a valid Search Engine ID must be configured in your site settings. Returning mock results.`);
+    return getMockSearchResults(input.query);
   }
 
   try {
     const response = await fetch(
-      `https://www.googleapis.com/customsearch/v1?key=${googleApiKey}&cx=${googleSearchEngineId}&q=${encodeURIComponent(input.query)}`
+      `https://www.googleapis.com/customsearch/v1?key=${googleApiKey}&cx=${googleSearchEngineId}&q=${encodeURIComponent(input.query)}&num=10` // Fetch 10 web results
     );
 
     if (!response.ok) {
@@ -93,33 +95,57 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
       snippet: item.snippet,
     })) || [];
 
+    // Attempt to extract images from Google search results pagemap
+    if (data.items) {
+      for (const item of data.items) {
+        if (images.length >= MAX_IMAGES_TO_FETCH) break;
+        const cseImage = item.pagemap?.cse_image?.[0]?.src;
+        const cseThumbnail = item.pagemap?.cse_thumbnail?.[0]?.src;
+        const imageUrl = cseImage || cseThumbnail;
+        if (imageUrl && !images.find(img => img.imageUrl === imageUrl)) {
+          images.push({
+            imageUrl: imageUrl,
+            altText: `Image related to ${item.title}`,
+            sourcePlatform: "Google",
+            sourceUrl: item.link, // Link to the page where the image was found
+          });
+        }
+      }
+      console.log(`Found ${images.length} image(s) from Google search result pagemaps.`);
+    }
+
   } catch (error) {
-    console.error('Error fetching real web search results:', error);
-    console.warn('Falling back to mock search results due to an error during web API call.');
+    console.error('Error fetching real web search results or extracting images from Google:', error);
+    console.warn('Falling back to mock search results due to an error during web API call for web results.');
     return getMockSearchResults(input.query); // Returns mock for both web and images
   }
 
-  // Fetch images primarily from Pexels based on the main query
-  if (pexelsApiKey && pexelsApiKey !== "YOUR_PEXELS_API_KEY_HERE") {
+  // Fetch images from Pexels if not enough from Google and Pexels key is available
+  if (images.length < MAX_IMAGES_TO_FETCH && pexelsApiKey && pexelsApiKey !== "YOUR_PEXELS_API_KEY_HERE") {
     try {
-      console.log(`Attempting to fetch images from Pexels for query: "${input.query}"`);
-      const pexelsResponse = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(input.query)}&per_page=6`, {
+      console.log(`Attempting to fetch ${MAX_IMAGES_TO_FETCH - images.length} image(s) from Pexels for query: "${input.query}"`);
+      const pexelsResponse = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(input.query)}&per_page=${MAX_IMAGES_TO_FETCH - images.length}`, {
         headers: { Authorization: pexelsApiKey }
       });
       if (pexelsResponse.ok) {
         const pexelsData = await pexelsResponse.json();
         if (pexelsData.photos && pexelsData.photos.length > 0) {
-          images = pexelsData.photos.map((photo: any): ImageResultItem => ({
-            imageUrl: photo.src.medium, // Or .large, .original, .landscape, etc.
-            altText: photo.alt || `Image related to ${input.query}`,
-            photographerName: photo.photographer,
-            photographerUrl: photo.photographer_url,
-            sourcePlatform: "Pexels",
-            sourceUrl: photo.url,
-          }));
-          console.log(`Found ${images.length} image(s) on Pexels for "${input.query}".`);
+          pexelsData.photos.forEach((photo: any) => {
+            if (images.length >= MAX_IMAGES_TO_FETCH) return;
+            if (!images.find(img => img.imageUrl === photo.src.medium)) { // Avoid duplicates if any
+                 images.push({
+                    imageUrl: photo.src.medium,
+                    altText: photo.alt || `Image related to ${input.query}`,
+                    photographerName: photo.photographer,
+                    photographerUrl: photo.photographer_url,
+                    sourcePlatform: "Pexels",
+                    sourceUrl: photo.url,
+                  });
+            }
+          });
+          console.log(`Added images from Pexels. Total images now: ${images.length}`);
         } else {
-          console.log(`No images found on Pexels for "${input.query}".`);
+          console.log(`No additional images found on Pexels for "${input.query}".`);
         }
       } else {
         const pexelsError = await pexelsResponse.text();
@@ -128,29 +154,34 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
     } catch (e) {
       console.error(`Error fetching from Pexels for query "${input.query}":`, e);
     }
-  } else if (!pexelsApiKey || pexelsApiKey === "YOUR_PEXELS_API_KEY_HERE") {
-    console.warn("PEXELS_API_KEY not set or is a placeholder. Skipping Pexels image search. Mock images will be used if web search also fails or returns mocks.");
+  } else if (images.length < MAX_IMAGES_TO_FETCH && (!pexelsApiKey || pexelsApiKey === "YOUR_PEXELS_API_KEY_HERE")) {
+    console.warn("PEXELS_API_KEY not set or is a placeholder. Skipping Pexels image search.");
   }
   
-  // Fallback to Unsplash if Pexels didn't return images and Unsplash key is available
-  if (images.length === 0 && unsplashApiKey && unsplashApiKey !== "YOUR_UNSPLASH_API_KEY_HERE") {
+  // Fallback to Unsplash if still not enough images and Unsplash key is available
+  if (images.length < MAX_IMAGES_TO_FETCH && unsplashApiKey && unsplashApiKey !== "YOUR_UNSPLASH_API_KEY_HERE") {
     try {
-      console.log(`Attempting to fetch images from Unsplash for query: "${input.query}" as Pexels fallback.`);
-      const unsplashResponse = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(input.query)}&per_page=6&client_id=${unsplashApiKey}`);
+      console.log(`Attempting to fetch ${MAX_IMAGES_TO_FETCH - images.length} image(s) from Unsplash for query: "${input.query}" as Pexels fallback.`);
+      const unsplashResponse = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(input.query)}&per_page=${MAX_IMAGES_TO_FETCH - images.length}&client_id=${unsplashApiKey}`);
       if (unsplashResponse.ok) {
         const unsplashData = await unsplashResponse.json();
         if (unsplashData.results && unsplashData.results.length > 0) {
-          images = unsplashData.results.map((photo: any): ImageResultItem => ({
-            imageUrl: photo.urls.regular, 
-            altText: photo.alt_description || photo.description || `Image related to ${input.query}`,
-            photographerName: photo.user.name,
-            photographerUrl: photo.user.links.html,
-            sourcePlatform: "Unsplash",
-            sourceUrl: photo.links.html,
-          }));
-          console.log(`Found ${images.length} image(s) on Unsplash for "${input.query}".`);
+         unsplashData.results.forEach((photo: any) => {
+            if (images.length >= MAX_IMAGES_TO_FETCH) return;
+             if (!images.find(img => img.imageUrl === photo.urls.regular)) { // Avoid duplicates
+                images.push({
+                    imageUrl: photo.urls.regular, 
+                    altText: photo.alt_description || photo.description || `Image related to ${input.query}`,
+                    photographerName: photo.user.name,
+                    photographerUrl: photo.user.links.html,
+                    sourcePlatform: "Unsplash",
+                    sourceUrl: photo.links.html,
+                  });
+             }
+          });
+          console.log(`Added images from Unsplash. Total images now: ${images.length}`);
         } else {
-          console.log(`No images found on Unsplash for "${input.query}".`);
+          console.log(`No additional images found on Unsplash for "${input.query}".`);
         }
       } else {
         const unsplashError = await unsplashResponse.text();
@@ -159,23 +190,23 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
     } catch (e) {
       console.error(`Error fetching from Unsplash for query "${input.query}":`, e);
     }
-  } else if (images.length === 0 && (!unsplashApiKey || unsplashApiKey === "YOUR_UNSPLASH_API_KEY_HERE")) {
+  } else if (images.length < MAX_IMAGES_TO_FETCH && (!unsplashApiKey || unsplashApiKey === "YOUR_UNSPLASH_API_KEY_HERE")) {
      console.warn("UNSPLASH_API_KEY not set or is a placeholder. Skipping Unsplash image search.");
   }
 
-
   // If no real images were fetched and web results are also empty (likely meaning we fell back to mocks earlier),
-  // ensure mock images are provided.
+  // ensure mock images are provided. This case should be rare if web search works.
   if (webResults.length === 0 && images.length === 0) {
+    console.warn("No web results and no real images, returning full mock data.");
     return getMockSearchResults(input.query);
   }
   
-  // If no images were fetched from APIs, but we have web results, provide some placeholder images.
-  // This ensures the "Images" section can still show something if image APIs fail but web search worked.
+  // If no images were fetched from any API, but we have web results, provide some placeholder images.
   if (images.length === 0 && webResults.length > 0) {
-    console.log("No images fetched from Pexels or Unsplash, providing 6 placeholder images.");
+    console.log("No images fetched from Google, Pexels, or Unsplash. Providing placeholder images.");
     const safeQuery = input.query || "image";
-    images = Array.from({ length: 6 }).map((_, i) => ({
+    const numPlaceholders = MAX_IMAGES_TO_FETCH; // Fill up to MAX_IMAGES_TO_FETCH with placeholders
+    images = Array.from({ length: numPlaceholders }).map((_, i) => ({
         imageUrl: `https://placehold.co/300x200.png?text=${encodeURIComponent(safeQuery.substring(0,10))}-${i+1}`,
         altText: `Placeholder image for ${safeQuery} ${i+1}`,
         sourcePlatform: "Placeholder",
@@ -203,7 +234,7 @@ function getMockSearchResults(query: string): PerformWebSearchOutput {
         snippet: `Another mock web snippet. Ensure environment variables are set for your chosen Search API.`,
       }
     ],
-    images: Array.from({ length: 2 }).map((_, i) => ({ // Keep mock images to 2 for brevity in mock mode
+    images: Array.from({ length: MAX_IMAGES_TO_FETCH }).map((_, i) => ({ // Provide MAX_IMAGES_TO_FETCH mock images
         imageUrl: `https://placehold.co/300x200.png?text=Mock-${safeQuery.substring(0,5)}-${i+1}`,
         altText: `Mock Image ${i+1} for ${safeQuery}`,
         photographerName: `Mock Artist ${i+1}`,
@@ -217,7 +248,7 @@ function getMockSearchResults(query: string): PerformWebSearchOutput {
 export const performWebSearchTool = ai.defineTool(
   {
     name: 'performWebSearch',
-    description: 'Performs a web search for the given query and returns a list of text results. Also fetches related images primarily from Pexels or Unsplash based on the query.',
+    description: 'Performs a web search for the given query and returns a list of text results. Also fetches related images, prioritizing Google, then Pexels, then Unsplash based on the query.',
     inputSchema: PerformWebSearchInputSchema,
     outputSchema: PerformWebSearchOutputSchema,
   },

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { processSearchQuery, type SearchActionResult, type ImageResultItem as ActionImageResultItem } from "@/app/actions";
+import { processSearchQuery, type SearchActionResult, type ImageResultItem as ActionImageResultItem } from "@/app/actions"; // Ensure ImageResultItem is imported from actions
 import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -228,54 +228,26 @@ export default function RetroInfoInterface() {
                           } else {
                             hint = currentQuery;
                           }
-                          hint = hint || "image";
-                          hint = hint.split(' ').slice(0, 2).join(' ');
+                          hint = hint || "image"; // Ensure hint is never empty
+                          hint = hint.split(' ').slice(0, 2).join(' '); // Limit to two words
 
                           return (
-                            <div key={index} className="group relative">
+                            <div key={index} className="group">
                               <a href={img.sourceUrl || '#'} target="_blank" rel="noopener noreferrer" className="block">
                                 <div className="relative w-full aspect-square mb-1">
                                   <Image
                                     src={img.imageUrl}
-                                    alt={img.altText || `Image related to query ${index + 1}`}
+                                    alt={img.altText || `Image ${index + 1} for ${form.getValues("query")}`}
                                     fill
                                     style={{ objectFit: 'cover' }}
                                     className="rounded-md border border-border shadow-md group-hover:opacity-80 transition-opacity"
                                     data-ai-hint={hint}
-                                    priority={index < 4} // Prioritize loading for first few images
-                                    sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw" // Basic responsive sizes
+                                    priority={index < 4} 
+                                    sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
                                   />
                                 </div>
                               </a>
-                               {(img.photographerName || img.sourcePlatform) && (
-                                 <p className="text-[0.65rem] leading-tight text-muted-foreground/80 mt-1 text-center">
-                                  {img.photographerName && (
-                                    <>
-                                      Photo by{' '}
-                                      {img.photographerUrl ? (
-                                        <a href={img.photographerUrl} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-accent">
-                                          {img.photographerName}
-                                        </a>
-                                      ) : (
-                                        img.photographerName
-                                      )}
-                                    </>
-                                  )}
-                                  {img.photographerName && img.sourcePlatform && ' on '}
-                                  {!img.photographerName && img.sourcePlatform && 'Image via '}
-                                  {img.sourcePlatform && (
-                                    <>
-                                      {img.sourceUrl ? (
-                                        <a href={img.sourceUrl} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-accent">
-                                          {img.sourcePlatform}
-                                        </a>
-                                      ) : (
-                                        img.sourcePlatform
-                                      )}
-                                    </>
-                                  )}
-                                </p>
-                              )}
+                              {/* Attribution text removed as per request */}
                             </div>
                           );
                         })}
@@ -291,5 +263,3 @@ export default function RetroInfoInterface() {
     </div>
   );
 }
-
-    
