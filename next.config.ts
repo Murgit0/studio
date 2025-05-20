@@ -19,10 +19,28 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'images.unsplash.com',
+        hostname: 'images.unsplash.com', // Kept in case of future use
         port: '',
         pathname: '/**',
       },
+      { 
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.googleusercontent.com', 
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'encrypted-tbn0.gstatic.com',
+        port: '',
+        pathname: '/**',
+      }
       // When integrating real image search from other services,
       // you will need to add their image CDN hostnames here for next/image optimization.
     ],
@@ -30,3 +48,5 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+
+    
