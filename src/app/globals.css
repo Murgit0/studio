@@ -1,8 +1,15 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  @property --rainbow-hue {
+    syntax: '<angle>';
+    inherits: true;
+    initial-value: 0deg;
+  }
+
   :root {
     --background: 0 0% 0%; /* Black */
     --foreground: 120 100% 50%; /* Green */
@@ -101,6 +108,48 @@
   100% { background-position: var(--grid-size) var(--grid-size); }
 }
 
+@keyframes rainbow-hue-cycle-kf {
+  0% {
+    --rainbow-hue: 0deg;
+  }
+  100% {
+    --rainbow-hue: 360deg;
+  }
+}
+
+body.rainbow-mode {
+  animation: rainbow-hue-cycle-kf 3s linear infinite;
+
+  /* Override green-based HSL variables to use the animated --rainbow-hue */
+  /* Original Green HSL values for reference: Hue ~120, Sat ~100%, Lightness varies */
+  --foreground: hsl(var(--rainbow-hue) 100% 50%);
+  --primary: hsl(var(--rainbow-hue) 100% 50%);
+  /* Keep foregrounds for primary/secondary black for contrast if their BG is animated */
+  /* --primary-foreground: 0 0% 0%; (already black, no change needed) */
+
+  --secondary: hsl(var(--rainbow-hue) 100% 30%);
+  /* --secondary-foreground: 0 0% 0%; (already black, no change needed) */
+
+  --muted: hsl(var(--rainbow-hue) 100% 15%); /* Animated background for muted elements */
+  --muted-foreground: hsl(var(--rainbow-hue) 80% 70%); /* Animated text for muted foreground */
+
+  --border: hsl(var(--rainbow-hue) 100% 35%);
+  --card-foreground: hsl(var(--rainbow-hue) 100% 50%);
+
+  --chart-1: hsl(var(--rainbow-hue) 100% 50%);
+  --chart-2: hsl(var(--rainbow-hue) 100% 40%);
+  /* Chart-3 and Chart-5 use accent color (blue), so they are not overridden */
+  --chart-4: hsl(var(--rainbow-hue) 100% 60%);
+
+  --sidebar-foreground: hsl(var(--rainbow-hue) 100% 60%);
+  --sidebar-primary: hsl(var(--rainbow-hue) 100% 50%);
+  /* --sidebar-primary-foreground: 0 0% 0%; (already black, no change needed) */
+  --sidebar-border: hsl(var(--rainbow-hue) 100% 25%);
+  
+  /* The animated grid background will also pick up the animated --foreground */
+}
+
+
 @layer base {
   * {
     @apply border-border;
@@ -133,3 +182,4 @@
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--accent));
 }
+

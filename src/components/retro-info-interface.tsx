@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from 'next/image';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { processSearchQuery, type SearchActionResult, type ImageResultItem as ActionImageResultItem } from "@/app/actions"; // Ensure ImageResultItem is imported from actions
+import { processSearchQuery, type SearchActionResult, type ImageResultItem as ActionImageResultItem } from "@/app/actions";
 import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -25,12 +25,37 @@ export default function RetroInfoInterface() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
+  const [titleClickCount, setTitleClickCount] = useState(0);
+  const [rainbowModeActive, setRainbowModeActive] = useState(false);
+
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       query: "",
     },
   });
+
+  const handleTitleClick = () => {
+    const newClickCount = titleClickCount + 1;
+    setTitleClickCount(newClickCount);
+    if (newClickCount >= 2) {
+      setRainbowModeActive(prev => !prev);
+      setTitleClickCount(0); // Reset for next double-click
+    }
+  };
+
+  useEffect(() => {
+    if (rainbowModeActive) {
+      document.body.classList.add('rainbow-mode');
+    } else {
+      document.body.classList.remove('rainbow-mode');
+    }
+    // Cleanup function to remove class if component unmounts while active
+    // or if rainbowModeActive becomes false.
+    return () => {
+      document.body.classList.remove('rainbow-mode');
+    };
+  }, [rainbowModeActive]);
 
   async function onSubmit(values: FormData) {
     setIsLoading(true);
@@ -77,7 +102,13 @@ export default function RetroInfoInterface() {
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-8">
       <header className="text-center">
-        <h1 className="text-5xl font-bold text-primary mb-2">Xpoxial Search</h1>
+        <h1
+          onClick={handleTitleClick}
+          className="text-5xl font-bold text-primary mb-2 cursor-pointer select-none"
+          title="Try clicking me twice!"
+        >
+          Xpoxial Search
+        </h1>
       </header>
 
       <Card className="border-primary shadow-lg shadow-primary/20">
@@ -242,7 +273,7 @@ export default function RetroInfoInterface() {
                                     style={{ objectFit: 'cover' }}
                                     className="rounded-md border border-border shadow-md group-hover:opacity-80 transition-opacity"
                                     data-ai-hint={hint}
-                                    priority={index < 4} 
+                                    priority={index < 4}
                                     sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
                                   />
                                 </div>
