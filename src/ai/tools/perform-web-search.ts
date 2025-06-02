@@ -240,15 +240,15 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
     if (input.verbose) console.log("[VERBOSE TOOL] No images fetched from Google or Pexels. Providing placeholder images.");
     const safeQuery = input.query || "image";
     images = Array.from({ length: Math.min(MAX_IMAGES_TO_FETCH, 6) }).map((_, i) => ({ 
-        imageUrl: `https://placehold.co/300x200.png?text=${encodeURIComponent(safeQuery.substring(0,10))}-${i+1}`,
+        imageUrl: `https://placehold.co/300x200.png`, // Removed text query param
         altText: `Placeholder image for ${safeQuery} ${i+1}`,
         sourcePlatform: "Placeholder",
-        sourceUrl: `https://placehold.co/` // This is a valid URL
+        sourceUrl: `https://placehold.co/` 
     }));
   } else if (images.length === 0 && webResults.length === 0) {
     console.warn("No web results and no real images, using mock images from getMockSearchResults.");
     if (input.verbose) console.log("[VERBOSE TOOL] No web results and no real images, using mock images.");
-    images = getMockSearchResults(input.query).images || []; // These should be valid by definition
+    images = getMockSearchResults(input.query).images || []; 
   }
   
   if (images.length > MAX_IMAGES_TO_FETCH) {
@@ -269,7 +269,7 @@ function getMockSearchResults(query: string): PerformWebSearchOutput {
       snippet: `This is mock web search result snippet ${i+1}. Configure your Search API (SEARCH_API_KEY and SEARCH_ENGINE_ID in environment variables) and/or DuckDuckScrape for real results.`,
     })),
     images: Array.from({ length: Math.min(MAX_IMAGES_TO_FETCH, 6) }).map((_, i) => ({ 
-        imageUrl: `https://placehold.co/300x200.png?text=Mock-${safeQuery.substring(0,5)}-${i+1}`,
+        imageUrl: `https://placehold.co/300x200.png`, // Removed text query param
         altText: `Mock Image ${i+1} for ${safeQuery}`,
         photographerName: `Mock Artist ${i+1}`,
         photographerUrl: `https://example.com/artist${i+1}`,
