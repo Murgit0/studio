@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { processSearchQuery, type SearchActionResult, type ImageResultItem as ActionImageResultItem } from "@/app/actions";
-import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, MessageCircleOff, MapPin, Smartphone } from "lucide-react";
+import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, MessageCircleOff, MapPin, Smartphone, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
@@ -32,6 +32,9 @@ interface DeviceInfo {
   screenHeight?: number;
 }
 
+const MAX_RECENT_SEARCHES = 5;
+const LOCAL_STORAGE_RECENT_SEARCHES_KEY = 'xpoxialRecentSearches';
+
 export default function RetroInfoInterface() {
   const [searchResult, setSearchResult] = useState<SearchActionResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -43,6 +46,7 @@ export default function RetroInfoInterface() {
   
   const [locationData, setLocationData] = useState<LocationData | null>(null);
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
 
   useEffect(() => {
     // Get device info
@@ -75,6 +79,17 @@ export default function RetroInfoInterface() {
     } else {
       setLocationData({ error: "Geolocation is not supported by this browser." });
     }
+
+    // Load recent searches from localStorage
+    try {
+      const storedSearches = localStorage.getItem(LOCAL_STORAGE_RECENT_SEARCHES_KEY);
+      if (storedSearches) {
+        setRecentSearches(JSON.parse(storedSearches));
+      }
+    } catch (error) {
+      console.error("Failed to load recent searches from localStorage:", error);
+    }
+
   }, [toast]);
 
 
@@ -109,12 +124,24 @@ export default function RetroInfoInterface() {
     setIsLoading(true);
     setSearchResult(null);
 
+    const queryToProcess = values.query;
+
+    // Update recent searches
+    const updatedRecentSearches = [queryToProcess, ...recentSearches.filter(rs => rs !== queryToProcess)].slice(0, MAX_RECENT_SEARCHES);
+    setRecentSearches(updatedRecentSearches);
+    try {
+      localStorage.setItem(LOCAL_STORAGE_RECENT_SEARCHES_KEY, JSON.stringify(updatedRecentSearches));
+    } catch (error) {
+      console.error("Failed to save recent searches to localStorage:", error);
+    }
+
+
     try {
       const response = await processSearchQuery({ 
-        query: values.query,
+        query: queryToProcess,
         verbose: isVerboseLoggingEnabled,
-        location: locationData || undefined, // Pass locationData or undefined if null
-        deviceInfo: deviceInfo || undefined, // Pass deviceInfo or undefined if null
+        location: locationData || undefined, 
+        deviceInfo: deviceInfo || undefined, 
       });
       setSearchResult(response);
 
@@ -161,6 +188,12 @@ export default function RetroInfoInterface() {
       });
       return newState;
     });
+  };
+
+  const handleRecentSearchClick = (searchTerm: string) => {
+    form.setValue("query", searchTerm);
+    // Optionally, trigger search immediately:
+    // form.handleSubmit(onSubmit)(); 
   };
 
   const fetchedImages: ActionImageResultItem[] = searchResult?.searchResults?.images || [];
@@ -234,6 +267,29 @@ export default function RetroInfoInterface() {
           </Form>
         </CardContent>
       </Card>
+
+      {recentSearches.length > 0 && (
+        <Card className="border-secondary shadow-lg shadow-secondary/20">
+          <CardHeader>
+            <CardTitle className="text-xl flex items-center gap-2">
+              <History className="h-5 w-5 text-accent" /> Recent Searches
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {recentSearches.map((searchTerm, index) => (
+              <Button
+                key={index}
+                variant="outline"
+                size="sm"
+                onClick={() => handleRecentSearchClick(searchTerm)}
+                className="text-sm hover:bg-accent/10"
+              >
+                {searchTerm}
+              </Button>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {isLoading && (
         <div className="flex justify-center items-center p-10">
