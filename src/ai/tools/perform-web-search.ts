@@ -11,7 +11,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { search as duckDuckScrapeSearch, type SearchOptions } from 'duck-duck-scrape';
+import { search as duckDuckScrapeSearch, type SearchOptions, type SafeSearchType } from 'duck-duck-scrape';
 
 // Schema for the tool's input
 const PerformWebSearchInputSchema = z.object({
@@ -118,7 +118,7 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
     try {
       if (input.verbose) console.log(`[VERBOSE TOOL] Google Search failed or returned no results. Fetching web results from DuckDuckScrape for query: "${input.query}"`);
       const ddgOptions: SearchOptions = {
-        safeSearch: 'moderate',
+        safeSearch: 'moderate' as SafeSearchType,
         offset: 0,
       };
       const ddgWebResults = await duckDuckScrapeSearch(input.query, ddgOptions);
