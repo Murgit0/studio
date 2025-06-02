@@ -30,6 +30,7 @@ interface DeviceInfo {
   userAgent?: string;
   screenWidth?: number;
   screenHeight?: number;
+  os?: string;
 }
 
 const MAX_RECENT_SEARCHES = 5;
@@ -50,10 +51,21 @@ export default function RetroInfoInterface() {
 
   useEffect(() => {
     // Get device info
+    const userAgent = navigator.userAgent;
+    let os = "Unknown OS";
+    if (userAgent.indexOf("Win") !== -1) os = "Windows";
+    if (userAgent.indexOf("Mac") !== -1) os = "MacOS";
+    // Order matters: Linux can be in Android user agents
+    if (userAgent.indexOf("Android") !== -1) os = "Android";
+    else if (userAgent.indexOf("Linux") !== -1) os = "Linux"; // Check Linux after Android
+    if (userAgent.indexOf("iPhone") !== -1 || userAgent.indexOf("iPad") !== -1) os = "iOS"; // More specific iOS checks
+    else if (userAgent.indexOf("X11") !== -1 && os === "Unknown OS") os = "UNIX"; // Fallback for UNIX-like if not Linux
+
     setDeviceInfo({
-      userAgent: navigator.userAgent,
+      userAgent: userAgent,
       screenWidth: window.screen.width,
       screenHeight: window.screen.height,
+      os: os,
     });
 
     // Get location

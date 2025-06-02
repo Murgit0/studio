@@ -30,6 +30,7 @@ const DeviceInfoSchema = z.object({
   userAgent: z.string().optional(),
   screenWidth: z.number().optional(),
   screenHeight: z.number().optional(),
+  os: z.string().optional().describe("The operating system of the user's device, if identifiable."),
 }).optional().describe("Information about the user's device, if available.");
 
 const SortSearchResultsInputSchemaInternal = z.object({
@@ -87,9 +88,10 @@ Longitude: {{location.longitude}}
 
 {{#if deviceInfo}}
 User's device context (if available and potentially relevant):
-User Agent: {{deviceInfo.userAgent}}
-Screen Width: {{deviceInfo.screenWidth}}px
-Screen Height: {{deviceInfo.screenHeight}}px
+{{#if deviceInfo.userAgent}}User Agent: {{deviceInfo.userAgent}}{{/if}}
+{{#if deviceInfo.screenWidth}}Screen Width: {{deviceInfo.screenWidth}}px{{/if}}
+{{#if deviceInfo.screenHeight}}Screen Height: {{deviceInfo.screenHeight}}px{{/if}}
+{{#if deviceInfo.os}}Operating System: {{deviceInfo.os}}{{/if}}
 {{/if}}
 
 When ranking, consider if the user's location or device context (if provided and the information seems pertinent to the query) offers clues about their intent or could make certain results more practical or relevant. For example, local services might be more relevant if the query has local intent and location is available. However, do not over-prioritize based on this context if it does not seem relevant to the query. The primary ranking factor should still be direct relevance to the query itself.

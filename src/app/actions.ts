@@ -57,6 +57,7 @@ const DeviceInfoSchema = z.object({
   userAgent: z.string().optional(),
   screenWidth: z.number().optional(),
   screenHeight: z.number().optional(),
+  os: z.string().optional().describe("The operating system of the user's device, if identifiable."),
 }).optional();
 
 const ActionSortSearchResultsInputSchema = z.object({
