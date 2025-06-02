@@ -112,10 +112,7 @@ export default function RetroInfoInterface() {
       </header>
 
       <Card className="border-primary shadow-lg shadow-primary/20">
-        <CardHeader>
-          <CardTitle className="text-2xl flex items-center gap-2"><Search className="h-6 w-6 text-accent" /> Enter Your Query</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
