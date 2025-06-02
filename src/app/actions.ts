@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { generateAnswer } from "@/ai/flows/generate-answer-flow";
 import { generateSearchResults as fetchWebAndImageResults } from "@/ai/flows/generate-search-results-flow";
+import { sortSearchResults } from "@/ai/flows/sort-search-results-flow"; // Import only the function and types
 
 // --- Schemas and Types for generate-answer-flow ---
 const GenerateAnswerInputSchema = z.object({
@@ -25,12 +26,14 @@ const GenerateSearchResultsInputSchema = z.object({
 });
 export type GenerateSearchResultsInput = z.infer<typeof GenerateSearchResultsInputSchema>;
 
-// Schema for a single web search result item (text-focused)
+// Schema for a single web search result item (text-focused) - Defined locally
 const WebSearchResultItemSchema = z.object({
   title: z.string().describe('The title of the search result.'),
   link: z.string().describe('The URL of the search result.'),
   snippet: z.string().describe('A short, descriptive snippet for the search result.'),
 });
+// Type for WebSearchResultItem can be inferred locally if needed, e.g., type WebSearchResultItem = z.infer<typeof WebSearchResultItemSchema>;
+
 
 // Schema for a single image result item
 const ImageResultItemSchema = z.object({
@@ -49,6 +52,18 @@ const GenerateSearchResultsOutputSchema = z.object({
 });
 export type GenerateSearchResultsOutput = z.infer<typeof GenerateSearchResultsOutputSchema>;
 // --- End Schemas and Types from generate-search-results-flow.ts ---
+
+// --- Local Schemas for sortSearchResults input and output validation ---
+const LocalSortSearchResultsInputSchema = z.object({
+  query: z.string().describe('The original user query.'),
+  webResults: z.array(WebSearchResultItemSchema).describe('The list of web search results to be sorted.'),
+});
+
+const LocalSortSearchResultsOutputSchema = z.object({
+  sortedWebResults: z.array(WebSearchResultItemSchema).describe('The web search results, sorted by relevance to the query.'),
+});
+// --- End Local Schemas for sortSearchResults ---
+
 
 const processSearchQueryInputSchema = z.object({
   query: z.string().min(1, "Query is required."),
@@ -86,6 +101,34 @@ export async function processSearchQuery(
       const validation = GenerateSearchResultsOutputSchema.safeParse(searchResultsCombined.value);
       if (validation.success) {
         parsedSearchResults = validation.data;
+
+        // Attempt to sort the web results if they exist
+        if (parsedSearchResults.webResults && parsedSearchResults.webResults.length > 0) {
+          try {
+            console.log(`Attempting to AI sort ${parsedSearchResults.webResults.length} web results for query: "${query}"`);
+            const sortInput = { query, webResults: parsedSearchResults.webResults };
+            
+            // Validate input for sortSearchResults using local schema
+            const validatedSortInput = LocalSortSearchResultsInputSchema.safeParse(sortInput);
+            if (!validatedSortInput.success) {
+                console.error("AI Sort Input Validation Error (actions.ts):", validatedSortInput.error.flatten());
+            } else {
+                const sortedResultsAction = await sortSearchResults(validatedSortInput.data);
+                // Validate output of sortSearchResults using local schema
+                const validatedSortOutput = LocalSortSearchResultsOutputSchema.safeParse(sortedResultsAction);
+                if (validatedSortOutput.success) {
+                    parsedSearchResults.webResults = validatedSortOutput.data.sortedWebResults;
+                    console.log("Web results AI sorted successfully.");
+                } else {
+                    console.warn("AI sorting of web results failed to produce valid output (actions.ts), using original order. Validation error:", validatedSortOutput.error.flatten());
+                }
+            }
+          } catch (sortError) {
+            console.error("Error during AI sorting of web results (actions.ts), using original order:", sortError);
+            // Proceed with unsorted results if sorting fails
+          }
+        }
+
       } else {
         console.error("Search results format error (actions.ts):", validation.error.flatten());
          const rawData = searchResultsCombined.value as any;
@@ -132,4 +175,3 @@ export async function processSearchQuery(
     return { error: `An error occurred while processing your request: ${errorMessage.substring(0,200)}` };
   }
 }
-

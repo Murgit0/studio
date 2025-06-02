@@ -6,6 +6,7 @@ config();
 // Example: import '@/ai/flows/my-flow.ts';
 import '@/ai/flows/generate-answer-flow.ts';
 import '@/ai/flows/generate-search-results-flow.ts';
+import '@/ai/flows/sort-search-results-flow.ts';
 
 
 // Import your tools here
