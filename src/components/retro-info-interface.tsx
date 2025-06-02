@@ -232,17 +232,6 @@ export default function RetroInfoInterface() {
                   </FormItem>
                 )}
               />
-               <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-                {locationData?.latitude && locationData?.longitude && (
-                    <span className="flex items-center"><MapPin className="h-3 w-3 mr-1 text-accent" /> {locationData.latitude.toFixed(2)}, {locationData.longitude.toFixed(2)}</span> 
-                )}
-                {locationData?.error && (
-                     <span className="flex items-center"><MapPin className="h-3 w-3 mr-1 text-destructive" /> Location N/A</span>
-                )}
-                {deviceInfo?.screenWidth && (
-                    <span className="flex items-center"><Smartphone className="h-3 w-3 mr-1 text-accent" /> {deviceInfo.screenWidth}px</span>
-                )}
-              </div>
               <Button 
                 type="submit" 
                 disabled={isLoading} 
