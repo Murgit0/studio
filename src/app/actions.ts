@@ -12,6 +12,7 @@ import { sortSearchResults, type SortSearchResultsInput as FlowSortSearchResults
 const ActionGenerateAnswerInputSchema = z.object({
   query: z.string().describe('The user query for which to generate an answer.'),
   verbose: z.boolean().optional().describe('Enable verbose logging for the flow.'),
+  recentSearches: z.array(z.string()).optional().describe('A list of recent search queries by the user, for context.'),
 });
 // --- End Schemas and Types from generate-answer-flow.ts ---
 
@@ -66,6 +67,7 @@ const ActionSortSearchResultsInputSchema = z.object({
   verbose: z.boolean().optional().describe('Enable verbose logging for the flow.'),
   location: LocationDataSchema,
   deviceInfo: DeviceInfoSchema,
+  recentSearches: z.array(z.string()).optional().describe('A list of recent search queries by the user, for context.'),
 });
 // --- End Schemas for sortSearchResults ---
 
@@ -75,6 +77,7 @@ const processSearchQueryInputSchema = z.object({
   verbose: z.boolean().optional(),
   location: LocationDataSchema,
   deviceInfo: DeviceInfoSchema,
+  recentSearches: z.array(z.string()).optional(),
 });
 
 export type ProcessSearchQueryInput = z.infer<typeof processSearchQueryInputSchema>;
@@ -94,18 +97,19 @@ export async function processSearchQuery(
     return { error: validatedInput.error.errors.map(e => e.message).join(", ") };
   }
 
-  const { query, verbose, location, deviceInfo } = validatedInput.data;
+  const { query, verbose, location, deviceInfo, recentSearches } = validatedInput.data;
   if (verbose) {
-    console.log(`[VERBOSE ACTION] processSearchQuery called with query: "${query}", verbose: ${verbose}, location: ${JSON.stringify(location)}, deviceInfo: ${JSON.stringify(deviceInfo)}`);
+    console.log(`[VERBOSE ACTION] processSearchQuery called with query: "${query}", verbose: ${verbose}, location: ${JSON.stringify(location)}, deviceInfo: ${JSON.stringify(deviceInfo)}, recentSearches: ${JSON.stringify(recentSearches)}`);
   }
 
   try {
     // For flows that don't use location/deviceInfo, we only pass query and verbose
-    const baseFlowArgs = { query, verbose };
+    const webSearchArgs = { query, verbose }; // fetchWebAndImageResults doesn't use recentSearches, location, or deviceInfo directly
+    const answerArgs = { query, verbose, recentSearches }; // generateAnswer uses query, verbose, recentSearches
     
     const [answerResult, searchResultsCombined] = await Promise.allSettled([
-      generateAnswer(baseFlowArgs as FlowGenerateAnswerInput), 
-      fetchWebAndImageResults(baseFlowArgs as FlowPerformWebSearchInput)
+      generateAnswer(answerArgs as FlowGenerateAnswerInput), 
+      fetchWebAndImageResults(webSearchArgs as FlowPerformWebSearchInput)
     ]);
 
     const answer = answerResult.status === 'fulfilled' ? answerResult.value : undefined;
@@ -122,14 +126,15 @@ export async function processSearchQuery(
 
         if (parsedSearchResults.webResults && parsedSearchResults.webResults.length > 0) {
           try {
-            if (verbose) console.log(`[VERBOSE ACTION] Attempting to AI sort ${parsedSearchResults.webResults.length} web results for query: "${query}" with location and device info.`);
+            if (verbose) console.log(`[VERBOSE ACTION] Attempting to AI sort ${parsedSearchResults.webResults.length} web results for query: "${query}" with location, device info, and recent searches.`);
             
             const sortInput: FlowSortSearchResultsInput = { 
                 query, 
                 webResults: parsedSearchResults.webResults,
                 verbose,
-                location: location, // Pass location
-                deviceInfo: deviceInfo, // Pass deviceInfo
+                location: location, 
+                deviceInfo: deviceInfo, 
+                recentSearches: recentSearches, // Pass recentSearches to sorting flow
             };
             
             const sortedResultsAction = await sortSearchResults(sortInput);

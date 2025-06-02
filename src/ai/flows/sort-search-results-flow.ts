@@ -2,7 +2,7 @@
 'use server';
 /**
  * @fileOverview Sorts web search results based on relevance to a user's query using an AI model,
- * optionally considering user's location and device information.
+ * optionally considering user's location, device information, and recent searches.
  *
  * - sortSearchResults - A function that re-ranks search results.
  * - SortSearchResultsInput - The input type for the sortSearchResults function.
@@ -39,11 +39,12 @@ const SortSearchResultsInputSchemaInternal = z.object({
   verbose: z.boolean().optional().describe('Enable verbose logging for the flow.'),
   location: LocationDataSchema,
   deviceInfo: DeviceInfoSchema,
+  recentSearches: z.array(z.string()).optional().describe('A list of recent search queries by the user, for context.'),
 });
 export type SortSearchResultsInput = z.infer<typeof SortSearchResultsInputSchemaInternal>;
 
 const SortSearchResultsOutputSchemaInternal = z.object({
-  sortedWebResults: z.array(WebSearchResultItemSchema).describe('The web search results, sorted by relevance to the query, considering location and device context if provided.'),
+  sortedWebResults: z.array(WebSearchResultItemSchema).describe('The web search results, sorted by relevance to the query, considering location, device context, and recent searches if provided.'),
 });
 export type SortSearchResultsOutput = z.infer<typeof SortSearchResultsOutputSchemaInternal>;
 
@@ -94,7 +95,15 @@ User's device context (if available and potentially relevant):
 {{#if deviceInfo.os}}Operating System: {{deviceInfo.os}}{{/if}}
 {{/if}}
 
-When ranking, consider if the user's location or device context (if provided and the information seems pertinent to the query) offers clues about their intent or could make certain results more practical or relevant. For example, local services might be more relevant if the query has local intent and location is available. However, do not over-prioritize based on this context if it does not seem relevant to the query. The primary ranking factor should still be direct relevance to the query itself.
+{{#if recentSearches}}
+Recent searches by the user that might provide context on their current interest or line of inquiry:
+{{#each recentSearches}}
+- {{{this}}}
+{{/each}}
+Consider this search history if it helps clarify the intent behind the current query or suggests related topics of interest.
+{{/if}}
+
+When ranking, consider if the user's location, device context, or recent search history (if provided and the information seems pertinent to the query) offers clues about their intent or could make certain results more practical or relevant. For example, local services might be more relevant if the query has local intent and location is available. However, do not over-prioritize based on this context if it does not seem relevant to the query itself. The primary ranking factor should still be direct relevance to the query.
 
 Original Search Results (JSON array of objects, each with 'title', 'link', and 'snippet'):
 {{{json webResults}}}
@@ -118,7 +127,8 @@ const sortSearchResultsFlow = ai.defineFlow(
         query: input.query, 
         webResults: input.webResults,
         location: input.location,
-        deviceInfo: input.deviceInfo
+        deviceInfo: input.deviceInfo,
+        recentSearches: input.recentSearches, // Pass recent searches to the prompt
     };
     if (input.verbose) {
         console.log(`[VERBOSE FLOW - sortSearchResultsFlow] Calling prompt with input:`, JSON.stringify(promptInput, null, 2));

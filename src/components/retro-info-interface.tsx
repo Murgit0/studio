@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { processSearchQuery, type SearchActionResult, type ImageResultItem as ActionImageResultItem } from "@/app/actions";
-import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, MessageCircleOff, MapPin, Smartphone, History } from "lucide-react";
+import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, MessageCircleOff, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
@@ -55,11 +55,10 @@ export default function RetroInfoInterface() {
     let os = "Unknown OS";
     if (userAgent.indexOf("Win") !== -1) os = "Windows";
     if (userAgent.indexOf("Mac") !== -1) os = "MacOS";
-    // Order matters: Linux can be in Android user agents
     if (userAgent.indexOf("Android") !== -1) os = "Android";
-    else if (userAgent.indexOf("Linux") !== -1) os = "Linux"; // Check Linux after Android
-    if (userAgent.indexOf("iPhone") !== -1 || userAgent.indexOf("iPad") !== -1) os = "iOS"; // More specific iOS checks
-    else if (userAgent.indexOf("X11") !== -1 && os === "Unknown OS") os = "UNIX"; // Fallback for UNIX-like if not Linux
+    else if (userAgent.indexOf("Linux") !== -1) os = "Linux";
+    if (userAgent.indexOf("iPhone") !== -1 || userAgent.indexOf("iPad") !== -1) os = "iOS";
+    else if (userAgent.indexOf("X11") !== -1 && os === "Unknown OS") os = "UNIX";
 
     setDeviceInfo({
       userAgent: userAgent,
@@ -153,7 +152,8 @@ export default function RetroInfoInterface() {
         query: queryToProcess,
         verbose: isVerboseLoggingEnabled,
         location: locationData || undefined, 
-        deviceInfo: deviceInfo || undefined, 
+        deviceInfo: deviceInfo || undefined,
+        recentSearches: updatedRecentSearches, // Pass recent searches
       });
       setSearchResult(response);
 

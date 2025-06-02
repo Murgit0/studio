@@ -13,6 +13,7 @@ import {z} from 'genkit';
 const GenerateAnswerInputSchema = z.object({
   query: z.string().describe('The user query for which to generate an answer.'),
   verbose: z.boolean().optional().describe('Enable verbose logging for the flow.'),
+  recentSearches: z.array(z.string()).optional().describe('A list of recent search queries by the user, for context.'),
 });
 // Type for internal use, inferred from the internal schema
 export type GenerateAnswerInput = z.infer<typeof GenerateAnswerInputSchema>;
@@ -46,6 +47,14 @@ The answer should be comprehensive enough to be useful, but concise and easy to 
 Avoid overly technical jargon unless necessary for the query, and explain it if used.
 Do not include any references, citations, or links in your answer.
 
+{{#if recentSearches}}
+To help understand the user's current train of thought or ongoing interest, here are some of their recent searches:
+{{#each recentSearches}}
+- {{{this}}}
+{{/each}}
+Use this contextual information if it seems relevant to the current query to provide a more tailored answer.
+{{/if}}
+
 User Query: {{{query}}}
 `,
 });
@@ -57,14 +66,14 @@ const generateAnswerFlow = ai.defineFlow(
     outputSchema: GenerateAnswerOutputSchema,
   },
   async (input) => {
+    const promptInput = { query: input.query, recentSearches: input.recentSearches };
     if (input.verbose) {
-        console.log(`[VERBOSE FLOW - generateAnswerFlow] Calling prompt with input (excluding verbose):`, JSON.stringify({query: input.query}, null, 2));
+        console.log(`[VERBOSE FLOW - generateAnswerFlow] Calling prompt with input (excluding verbose):`, JSON.stringify(promptInput, null, 2));
     }
-    const {output} = await prompt({query: input.query}); // Pass only relevant fields to prompt
+    const {output} = await prompt(promptInput); // Pass only relevant fields to prompt
     if (input.verbose) {
         console.log(`[VERBOSE FLOW - generateAnswerFlow] Prompt output:`, JSON.stringify(output, null, 2));
     }
     return output!;
   }
 );
-
