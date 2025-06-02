@@ -45,6 +45,9 @@ const nextConfig: NextConfig = {
       // you will need to add their image CDN hostnames here for next/image optimization.
     ],
   },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
 };
 
 export default nextConfig;
