@@ -117,8 +117,9 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
   if (webResults.length === 0) {
     try {
       if (input.verbose) console.log(`[VERBOSE TOOL] Google Search failed or returned no results. Fetching web results from DuckDuckScrape for query: "${input.query}"`);
+      const safeSearchValue: SafeSearchType = 'moderate';
       const ddgOptions: SearchOptions = {
-        safeSearch: 'moderate' as SafeSearchType,
+        safeSearch: safeSearchValue,
         offset: 0,
       };
       const ddgWebResults = await duckDuckScrapeSearch(input.query, ddgOptions);
