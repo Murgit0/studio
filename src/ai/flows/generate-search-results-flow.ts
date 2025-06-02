@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Fetches web search results for a user's query using a dedicated search tool.
@@ -7,21 +8,24 @@
 
 import {
   performWebSearch as fetchRealSearchResults,
-  type PerformWebSearchInput, // TypeScript type for function parameters/return types
-  type PerformWebSearchOutput, // TypeScript type for function parameters/return types
+  type PerformWebSearchInput, 
+  type PerformWebSearchOutput, 
 } from '@/ai/tools/perform-web-search';
-// Removed import of Zod schemas (PerformWebSearchInputSchema, PerformWebSearchOutputSchema)
-// as they are not needed for this direct wrapper and caused "use server" export issues.
+
 
 /**
  * Fetches real search results by directly calling the search tool's wrapper function.
+ * Now includes a verbose flag to pass down.
  */
 export async function generateSearchResults(input: PerformWebSearchInput): Promise<PerformWebSearchOutput> {
+  if (input.verbose) {
+    console.log(`[VERBOSE FLOW - generateSearchResults] Input:`, JSON.stringify(input, null, 2));
+  }
   // Directly call the search tool's logic.
-  return fetchRealSearchResults(input);
+  const results = await fetchRealSearchResults(input);
+  if (input.verbose) {
+    console.log(`[VERBOSE FLOW - generateSearchResults] Output:`, JSON.stringify(results, null, 2));
+  }
+  return results;
 }
 
-// Note: If this were to be a Genkit flow defined with ai.defineFlow,
-// it would need its own local Zod schema definitions for input and output,
-// or import them from a shared, non-'use server' module.
-// For the current direct-call approach, this is not necessary.

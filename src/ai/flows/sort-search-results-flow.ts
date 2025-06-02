@@ -22,6 +22,7 @@ export type WebSearchResultItem = z.infer<typeof WebSearchResultItemSchema>;
 const SortSearchResultsInputSchema = z.object({
   query: z.string().describe('The original user query.'),
   webResults: z.array(WebSearchResultItemSchema).describe('The list of web search results to be sorted.'),
+  verbose: z.boolean().optional().describe('Enable verbose logging for the flow.'),
 });
 export type SortSearchResultsInput = z.infer<typeof SortSearchResultsInputSchema>;
 
@@ -31,17 +32,26 @@ const SortSearchResultsOutputSchema = z.object({
 export type SortSearchResultsOutput = z.infer<typeof SortSearchResultsOutputSchema>;
 
 export async function sortSearchResults(input: SortSearchResultsInput): Promise<SortSearchResultsOutput> {
-  // If no results or a very small number, sorting might not be beneficial or could be error-prone for the AI.
-  // Let's say we only sort if there's more than 1 result.
+  if (input.verbose) {
+    console.log(`[VERBOSE FLOW - sortSearchResults] Input:`, JSON.stringify(input, null, 2));
+  }
+
   if (input.webResults.length <= 1) {
+    if (input.verbose) {
+        console.log(`[VERBOSE FLOW - sortSearchResults] Skipping sort for <= 1 result.`);
+    }
     return { sortedWebResults: input.webResults };
   }
-  return sortSearchResultsFlow(input);
+  const result = await sortSearchResultsFlow(input);
+  if (input.verbose) {
+    console.log(`[VERBOSE FLOW - sortSearchResults] Output:`, JSON.stringify(result, null, 2));
+  }
+  return result;
 }
 
 const prompt = ai.definePrompt({
   name: 'sortSearchResultsPrompt',
-  input: {schema: SortSearchResultsInputSchema},
+  input: {schema: SortSearchResultsInputSchema.omit({ verbose: true })}, // verbose not needed by prompt
   output: {schema: SortSearchResultsOutputSchema},
   prompt: `You are an expert relevance ranking AI.
 Your task is to re-order the given list of web search results based on their relevance to the user's query.
@@ -69,27 +79,36 @@ const sortSearchResultsFlow = ai.defineFlow(
     outputSchema: SortSearchResultsOutputSchema,
   },
   async (input) => {
-    const {output} = await prompt(input);
+    if (input.verbose) {
+        console.log(`[VERBOSE FLOW - sortSearchResultsFlow] Calling prompt with input (excluding verbose):`, JSON.stringify({query: input.query, webResults: input.webResults}, null, 2));
+    }
+    const {output} = await prompt({query: input.query, webResults: input.webResults}); // Pass only relevant fields
+    
+    if (input.verbose) {
+        console.log(`[VERBOSE FLOW - sortSearchResultsFlow] Prompt output:`, JSON.stringify(output, null, 2));
+    }
+
     if (!output) {
-        // This case should ideally be handled by the model producing valid JSON based on the output schema.
-        // If output is null, it means the model failed to produce the expected structured output.
         console.warn('SortSearchResultsFlow: AI model did not return expected output. Returning original order.');
+        if (input.verbose) console.log('[VERBOSE FLOW - sortSearchResultsFlow] AI model output was null. Returning original order.');
         return { sortedWebResults: input.webResults };
     }
-    // Ensure the output contains all original items, even if sorting wasn't perfect
-    // This is a basic check; more sophisticated validation might be needed
+    
     if (output.sortedWebResults.length !== input.webResults.length) {
         console.warn('SortSearchResultsFlow: AI model returned a different number of items. Returning original order.');
+        if (input.verbose) console.log('[VERBOSE FLOW - sortSearchResultsFlow] AI model output item count mismatch. Returning original order.');
         return { sortedWebResults: input.webResults };
     }
-    // Further check: ensure all original links are present to confirm items weren't fabricated/lost
+    
     const originalLinks = new Set(input.webResults.map(r => r.link));
     const outputLinks = new Set(output.sortedWebResults.map(r => r.link));
     if (originalLinks.size !== outputLinks.size || !Array.from(originalLinks).every(link => outputLinks.has(link))) {
         console.warn('SortSearchResultsFlow: AI model modified or lost items during sorting. Returning original order.');
+         if (input.verbose) console.log('[VERBOSE FLOW - sortSearchResultsFlow] AI model modified/lost items. Returning original order.');
         return { sortedWebResults: input.webResults };
     }
 
     return output;
   }
 );
+

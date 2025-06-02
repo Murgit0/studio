@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { processSearchQuery, type SearchActionResult, type ImageResultItem as ActionImageResultItem } from "@/app/actions";
-import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon } from "lucide-react";
+import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, MessageCircleOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
@@ -27,6 +27,7 @@ export default function RetroInfoInterface() {
 
   const [titleClickCount, setTitleClickCount] = useState(0);
   const [rainbowModeActive, setRainbowModeActive] = useState(false);
+  const [isVerboseLoggingEnabled, setIsVerboseLoggingEnabled] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -50,8 +51,6 @@ export default function RetroInfoInterface() {
     } else {
       document.body.classList.remove('rainbow-mode');
     }
-    // Cleanup function to remove class if component unmounts while active
-    // or if rainbowModeActive becomes false.
     return () => {
       document.body.classList.remove('rainbow-mode');
     };
@@ -62,7 +61,10 @@ export default function RetroInfoInterface() {
     setSearchResult(null);
 
     try {
-      const response = await processSearchQuery({ query: values.query });
+      const response = await processSearchQuery({ 
+        query: values.query,
+        verbose: isVerboseLoggingEnabled 
+      });
       setSearchResult(response);
 
       if (response.error) {
@@ -96,6 +98,19 @@ export default function RetroInfoInterface() {
       setIsLoading(false);
     }
   }
+
+  const handleSearchButtonContextMenu = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    setIsVerboseLoggingEnabled(prev => {
+      const newState = !prev;
+      toast({
+        title: "Verbose Logging",
+        description: newState ? "Verbose AI logs enabled." : "Verbose AI logs disabled.",
+        icon: newState ? <MessageCircleMore className="h-5 w-5 text-accent" /> : <MessageCircleOff className="h-5 w-5 text-muted-foreground" />
+      });
+      return newState;
+    });
+  };
 
   const fetchedImages: ActionImageResultItem[] = searchResult?.searchResults?.images || [];
 
@@ -133,7 +148,13 @@ export default function RetroInfoInterface() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" disabled={isLoading} className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg py-6">
+              <Button 
+                type="submit" 
+                disabled={isLoading} 
+                className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg py-6"
+                onContextMenu={handleSearchButtonContextMenu}
+                title="Left-click to search. Right-click to toggle verbose AI logs."
+              >
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -145,6 +166,7 @@ export default function RetroInfoInterface() {
                     Search
                   </>
                 )}
+                {isVerboseLoggingEnabled && <MessageCircleMore className="ml-2 h-4 w-4 text-accent-foreground/70" />}
               </Button>
             </form>
           </Form>
@@ -189,7 +211,6 @@ export default function RetroInfoInterface() {
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {/* Main Content Column (AI Answer + Search Results List) */}
               <div className="md:col-span-2 space-y-8">
                 {searchResult.answer && searchResult.answer.answer && (
                   <Card className="border-accent shadow-lg shadow-accent/20">
@@ -234,7 +255,6 @@ export default function RetroInfoInterface() {
                 )}
               </div>
 
-              {/* New Images Section Column */}
               {fetchedImages.length > 0 && (
                 <div className="md:col-span-1 space-y-8">
                   <Card className="border-secondary shadow-lg shadow-secondary/20">
@@ -256,8 +276,8 @@ export default function RetroInfoInterface() {
                           } else {
                             hint = currentQuery;
                           }
-                          hint = hint || "image"; // Ensure hint is never empty
-                          hint = hint.split(' ').slice(0, 2).join(' '); // Limit to two words
+                          hint = hint || "image"; 
+                          hint = hint.split(' ').slice(0, 2).join(' '); 
 
                           return (
                             <div key={index} className="group">
@@ -275,7 +295,6 @@ export default function RetroInfoInterface() {
                                   />
                                 </div>
                               </a>
-                              {/* Attribution text removed as per request */}
                             </div>
                           );
                         })}
@@ -291,3 +310,4 @@ export default function RetroInfoInterface() {
     </div>
   );
 }
+
