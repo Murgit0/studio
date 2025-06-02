@@ -153,20 +153,30 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
   if (googleSearchData?.items) {
     for (const item of googleSearchData.items) {
       if (images.length >= MAX_IMAGES_TO_FETCH) break;
-      const cseImage = item.pagemap?.cse_image?.[0]?.src;
-      const cseThumbnail = item.pagemap?.cse_thumbnail?.[0]?.src;
-      const imageUrl = cseImage || cseThumbnail;
+      const cseImageSrc = item.pagemap?.cse_image?.[0]?.src;
+      const cseThumbnailSrc = item.pagemap?.cse_thumbnail?.[0]?.src;
+      const potentialImageUrl = cseImageSrc || cseThumbnailSrc;
       
-      if (imageUrl && !images.find(img => img.imageUrl === imageUrl)) { 
-        images.push({
-          imageUrl: imageUrl,
+      if (potentialImageUrl && !images.find(img => img.imageUrl === potentialImageUrl)) { 
+        const imageEntryCandidate = {
+          imageUrl: potentialImageUrl,
           altText: item.pagemap?.metatags?.[0]?.['og:image:alt'] || item.pagemap?.metatags?.[0]?.['twitter:image:alt'] || `Image from ${item.title}`,
           sourcePlatform: "Google",
-          sourceUrl: item.link, 
-        });
+          sourceUrl: item.link, // item.link is the page link
+        };
+
+        const parsedImageEntry = ImageResultItemSchema.safeParse(imageEntryCandidate);
+
+        if (parsedImageEntry.success) {
+          images.push(parsedImageEntry.data);
+        } else {
+          if (input.verbose) {
+            console.warn(`[VERBOSE TOOL] Skipping Google CSE image due to schema validation failure. imageUrl: ${potentialImageUrl}, pageUrl: ${item.link}. Errors:`, parsedImageEntry.error.flatten().fieldErrors, "Input data:", imageEntryCandidate);
+          }
+        }
       }
     }
-    if (input.verbose) console.log(`[VERBOSE TOOL] Extracted ${images.length} image(s) from Google Custom Search results data.`);
+    if (input.verbose) console.log(`[VERBOSE TOOL] Extracted ${images.length} valid image(s) from Google Custom Search results data after schema validation.`);
   }
 
   if (images.length < MAX_IMAGES_TO_FETCH && pexelsApiKey && pexelsApiKey !== "YOUR_PEXELS_API_KEY_HERE") {
@@ -185,19 +195,30 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
           let pexelsImagesAdded = 0;
           pexelsData.photos.forEach((photo: any) => {
             if (images.length >= MAX_IMAGES_TO_FETCH) return;
-            if (photo.src?.medium && !images.find(img => img.imageUrl === photo.src.medium)) {
-                 images.push({
-                    imageUrl: photo.src.medium,
-                    altText: photo.alt || `Image by ${photo.photographer} on Pexels`,
-                    photographerName: photo.photographer,
-                    photographerUrl: photo.photographer_url,
-                    sourcePlatform: "Pexels",
-                    sourceUrl: photo.url,
-                  });
-                  pexelsImagesAdded++;
+            
+            const pexelsImageCandidate = {
+                imageUrl: photo.src?.medium,
+                altText: photo.alt || `Image by ${photo.photographer} on Pexels`,
+                photographerName: photo.photographer,
+                photographerUrl: photo.photographer_url,
+                sourcePlatform: "Pexels",
+                sourceUrl: photo.url,
+            };
+            
+            const parsedPexelsImage = ImageResultItemSchema.safeParse(pexelsImageCandidate);
+
+            if (parsedPexelsImage.success) {
+                if (!images.find(img => img.imageUrl === parsedPexelsImage.data.imageUrl)) {
+                    images.push(parsedPexelsImage.data);
+                    pexelsImagesAdded++;
+                }
+            } else {
+                 if (input.verbose) {
+                    console.warn(`[VERBOSE TOOL] Skipping Pexels image due to schema validation failure. imageUrl: ${photo.src?.medium}. Errors:`, parsedPexelsImage.error.flatten().fieldErrors, "Input data:", pexelsImageCandidate);
+                }
             }
           });
-          if (input.verbose) console.log(`[VERBOSE TOOL] Fetched and added ${pexelsImagesAdded} image(s) from Pexels.`);
+          if (input.verbose) console.log(`[VERBOSE TOOL] Fetched and added ${pexelsImagesAdded} valid image(s) from Pexels after schema validation.`);
         } else {
           if (input.verbose) console.log(`[VERBOSE TOOL] No images found on Pexels for "${input.query}".`);
         }
@@ -222,12 +243,12 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
         imageUrl: `https://placehold.co/300x200.png?text=${encodeURIComponent(safeQuery.substring(0,10))}-${i+1}`,
         altText: `Placeholder image for ${safeQuery} ${i+1}`,
         sourcePlatform: "Placeholder",
-        sourceUrl: `https://placehold.co/`
+        sourceUrl: `https://placehold.co/` // This is a valid URL
     }));
   } else if (images.length === 0 && webResults.length === 0) {
     console.warn("No web results and no real images, using mock images from getMockSearchResults.");
     if (input.verbose) console.log("[VERBOSE TOOL] No web results and no real images, using mock images.");
-    images = getMockSearchResults(input.query).images || [];
+    images = getMockSearchResults(input.query).images || []; // These should be valid by definition
   }
   
   if (images.length > MAX_IMAGES_TO_FETCH) {
