@@ -11,7 +11,6 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { search as duckDuckGoImageSearch } from 'duckduckgo-images-api';
 import { search as duckDuckScrapeSearch } from 'duck-duck-scrape';
 
 // Schema for the tool's input
@@ -139,7 +138,7 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
   }
 
 
-  // 3. Image Fetching Logic (Prioritizing Google, then Pexels, then DuckDuckGo Images)
+  // 3. Image Fetching Logic (Prioritizing Google, then Pexels)
 
   // 3a. Extract images from Google Search Data (if available and web results came from Google)
   if (googleSearchData?.items) {
@@ -202,44 +201,9 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
      console.warn("PEXELS_API_KEY not set or is a placeholder. Skipping Pexels image search as fallback.");
   }
 
-  // 3c. DuckDuckGo Images as a further fallback if still not enough images
-  if (images.length < MAX_IMAGES_TO_FETCH) {
-    const imagesNeededFromDDG = MAX_IMAGES_TO_FETCH - images.length;
-    try {
-      console.log(`Attempting to fetch up to ${imagesNeededFromDDG} image(s) from DuckDuckGo Images for query: "${input.query}"`);
-      const ddgImageResults = await duckDuckGoImageSearch({
-        query: input.query,
-        moderate: true,
-        iterations: 1, 
-        retries: 2,
-      });
-
-      if (ddgImageResults && ddgImageResults.length > 0) {
-        let ddgImagesAdded = 0;
-        for (const result of ddgImageResults) {
-          if (images.length >= MAX_IMAGES_TO_FETCH) break;
-          if (result.image && !images.find(img => img.imageUrl === result.image)) {
-            images.push({
-              imageUrl: result.image,
-              altText: result.title || `Image from DuckDuckGo for ${input.query}`,
-              sourcePlatform: "DuckDuckGo",
-              sourceUrl: result.url, 
-            });
-            ddgImagesAdded++;
-          }
-        }
-        console.log(`Fetched and added ${ddgImagesAdded} image(s) from DuckDuckGo Images.`);
-      } else {
-        console.log(`No images found on DuckDuckGo Images for "${input.query}" to supplement other sources.`);
-      }
-    } catch (e: any) {
-      console.error(`Error fetching from DuckDuckGo Images for query "${input.query}":`, e.message || e);
-    }
-  }
-
   // 4. Placeholders as a final resort if no images were fetched and web results exist
   if (images.length === 0 && webResults.length > 0) {
-    console.log("No images fetched from Google, Pexels, or DuckDuckGo. Providing placeholder images.");
+    console.log("No images fetched from Google or Pexels. Providing placeholder images.");
     const safeQuery = input.query || "image";
     images = Array.from({ length: Math.min(MAX_IMAGES_TO_FETCH, 6) }).map((_, i) => ({ 
         imageUrl: `https://placehold.co/300x200.png?text=${encodeURIComponent(safeQuery.substring(0,10))}-${i+1}`,
@@ -287,9 +251,10 @@ function getMockSearchResults(query: string): PerformWebSearchOutput {
 const performWebSearchTool = ai.defineTool(
   {
     name: 'performWebSearch',
-    description: 'Performs a web search for text results, primarily using Google Custom Search and falling back to DuckDuckScrape. Fetches related images, prioritizing images found within Google search results, then Pexels, then DuckDuckGo Images. Provides placeholders if no images are sourced.',
+    description: 'Performs a web search for text results, primarily using Google Custom Search and falling back to DuckDuckScrape. Fetches related images, prioritizing images found within Google search results, then Pexels. Provides placeholders if no images are sourced.',
     inputSchema: PerformWebSearchInputSchema,
     outputSchema: PerformWebSearchOutputSchema,
   },
   performWebSearchToolHandler
 );
+
