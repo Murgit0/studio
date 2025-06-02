@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { processSearchQuery, type SearchActionResult, type ImageResultItem as ActionImageResultItem } from "@/app/actions";
-import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, MessageCircleOff } from "lucide-react";
+import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, MessageCircleOff, MapPin, Smartphone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
@@ -19,6 +19,18 @@ const formSchema = z.object({
 });
 
 type FormData = z.infer<typeof formSchema>;
+
+interface LocationData {
+  latitude?: number;
+  longitude?: number;
+  error?: string;
+}
+
+interface DeviceInfo {
+  userAgent?: string;
+  screenWidth?: number;
+  screenHeight?: number;
+}
 
 export default function RetroInfoInterface() {
   const [searchResult, setSearchResult] = useState<SearchActionResult | null>(null);
@@ -28,6 +40,43 @@ export default function RetroInfoInterface() {
   const [titleClickCount, setTitleClickCount] = useState(0);
   const [rainbowModeActive, setRainbowModeActive] = useState(false);
   const [isVerboseLoggingEnabled, setIsVerboseLoggingEnabled] = useState(false);
+  
+  const [locationData, setLocationData] = useState<LocationData | null>(null);
+  const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
+
+  useEffect(() => {
+    // Get device info
+    setDeviceInfo({
+      userAgent: navigator.userAgent,
+      screenWidth: window.screen.width,
+      screenHeight: window.screen.height,
+    });
+
+    // Get location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLocationData({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+        },
+        (error) => {
+          console.warn(`Geolocation error: ${error.message}`);
+          setLocationData({ error: error.message });
+          toast({
+            variant: "default",
+            title: "Location Access",
+            description: `Could not get location: ${error.message}. Some features might be limited.`,
+            duration: 5000,
+          });
+        }
+      );
+    } else {
+      setLocationData({ error: "Geolocation is not supported by this browser." });
+    }
+  }, [toast]);
+
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -63,7 +112,9 @@ export default function RetroInfoInterface() {
     try {
       const response = await processSearchQuery({ 
         query: values.query,
-        verbose: isVerboseLoggingEnabled 
+        verbose: isVerboseLoggingEnabled,
+        location: locationData || undefined, // Pass locationData or undefined if null
+        deviceInfo: deviceInfo || undefined, // Pass deviceInfo or undefined if null
       });
       setSearchResult(response);
 
@@ -148,6 +199,17 @@ export default function RetroInfoInterface() {
                   </FormItem>
                 )}
               />
+               <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                {locationData?.latitude && locationData?.longitude && (
+                    <span className="flex items-center"><MapPin className="h-3 w-3 mr-1 text-accent" /> {locationData.latitude.toFixed(2)}, {locationData.longitude.toFixed(2)}</span> 
+                )}
+                {locationData?.error && (
+                     <span className="flex items-center"><MapPin className="h-3 w-3 mr-1 text-destructive" /> Location N/A</span>
+                )}
+                {deviceInfo?.screenWidth && (
+                    <span className="flex items-center"><Smartphone className="h-3 w-3 mr-1 text-accent" /> {deviceInfo.screenWidth}px</span>
+                )}
+              </div>
               <Button 
                 type="submit" 
                 disabled={isLoading} 
@@ -310,4 +372,3 @@ export default function RetroInfoInterface() {
     </div>
   );
 }
-

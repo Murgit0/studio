@@ -1,7 +1,8 @@
 
 'use server';
 /**
- * @fileOverview Sorts web search results based on relevance to a user's query using an AI model.
+ * @fileOverview Sorts web search results based on relevance to a user's query using an AI model,
+ * optionally considering user's location and device information.
  *
  * - sortSearchResults - A function that re-ranks search results.
  * - SortSearchResultsInput - The input type for the sortSearchResults function.
@@ -19,17 +20,31 @@ const WebSearchResultItemSchema = z.object({
 });
 export type WebSearchResultItem = z.infer<typeof WebSearchResultItemSchema>;
 
-const SortSearchResultsInputSchema = z.object({
+const LocationDataSchema = z.object({
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  error: z.string().optional(),
+}).optional().describe("User's approximate geolocation data, if available.");
+
+const DeviceInfoSchema = z.object({
+  userAgent: z.string().optional(),
+  screenWidth: z.number().optional(),
+  screenHeight: z.number().optional(),
+}).optional().describe("Information about the user's device, if available.");
+
+const SortSearchResultsInputSchemaInternal = z.object({
   query: z.string().describe('The original user query.'),
   webResults: z.array(WebSearchResultItemSchema).describe('The list of web search results to be sorted.'),
   verbose: z.boolean().optional().describe('Enable verbose logging for the flow.'),
+  location: LocationDataSchema,
+  deviceInfo: DeviceInfoSchema,
 });
-export type SortSearchResultsInput = z.infer<typeof SortSearchResultsInputSchema>;
+export type SortSearchResultsInput = z.infer<typeof SortSearchResultsInputSchemaInternal>;
 
-const SortSearchResultsOutputSchema = z.object({
-  sortedWebResults: z.array(WebSearchResultItemSchema).describe('The web search results, sorted by relevance to the query.'),
+const SortSearchResultsOutputSchemaInternal = z.object({
+  sortedWebResults: z.array(WebSearchResultItemSchema).describe('The web search results, sorted by relevance to the query, considering location and device context if provided.'),
 });
-export type SortSearchResultsOutput = z.infer<typeof SortSearchResultsOutputSchema>;
+export type SortSearchResultsOutput = z.infer<typeof SortSearchResultsOutputSchemaInternal>;
 
 export async function sortSearchResults(input: SortSearchResultsInput): Promise<SortSearchResultsOutput> {
   if (input.verbose) {
@@ -51,8 +66,8 @@ export async function sortSearchResults(input: SortSearchResultsInput): Promise<
 
 const prompt = ai.definePrompt({
   name: 'sortSearchResultsPrompt',
-  input: {schema: SortSearchResultsInputSchema.omit({ verbose: true })}, // verbose not needed by prompt
-  output: {schema: SortSearchResultsOutputSchema},
+  input: {schema: SortSearchResultsInputSchemaInternal.omit({ verbose: true })}, // verbose not needed by prompt
+  output: {schema: SortSearchResultsOutputSchemaInternal},
   prompt: `You are an expert relevance ranking AI.
 Your task is to re-order the given list of web search results based on their relevance to the user's query.
 The most relevant results should appear first in the output array.
@@ -60,6 +75,24 @@ Analyze the user's query and then, for each search result (title and snippet), a
 
 User Query:
 {{{query}}}
+
+{{#if location}}
+User's approximate location (if available and potentially relevant to the query):
+Latitude: {{location.latitude}}
+Longitude: {{location.longitude}}
+{{#if location.error}}
+(Note: Location could not be retrieved: {{location.error}})
+{{/if}}
+{{/if}}
+
+{{#if deviceInfo}}
+User's device context (if available and potentially relevant):
+User Agent: {{deviceInfo.userAgent}}
+Screen Width: {{deviceInfo.screenWidth}}px
+Screen Height: {{deviceInfo.screenHeight}}px
+{{/if}}
+
+When ranking, consider if the user's location or device context (if provided and the information seems pertinent to the query) offers clues about their intent or could make certain results more practical or relevant. For example, local services might be more relevant if the query has local intent and location is available. However, do not over-prioritize based on this context if it does not seem relevant to the query. The primary ranking factor should still be direct relevance to the query itself.
 
 Original Search Results (JSON array of objects, each with 'title', 'link', and 'snippet'):
 {{{json webResults}}}
@@ -75,14 +108,21 @@ Return ONLY the JSON array of sorted results.
 const sortSearchResultsFlow = ai.defineFlow(
   {
     name: 'sortSearchResultsFlow',
-    inputSchema: SortSearchResultsInputSchema,
-    outputSchema: SortSearchResultsOutputSchema,
+    inputSchema: SortSearchResultsInputSchemaInternal,
+    outputSchema: SortSearchResultsOutputSchemaInternal,
   },
   async (input) => {
+    const promptInput = { 
+        query: input.query, 
+        webResults: input.webResults,
+        location: input.location,
+        deviceInfo: input.deviceInfo
+    };
     if (input.verbose) {
-        console.log(`[VERBOSE FLOW - sortSearchResultsFlow] Calling prompt with input (excluding verbose):`, JSON.stringify({query: input.query, webResults: input.webResults}, null, 2));
+        console.log(`[VERBOSE FLOW - sortSearchResultsFlow] Calling prompt with input:`, JSON.stringify(promptInput, null, 2));
     }
-    const {output} = await prompt({query: input.query, webResults: input.webResults}); // Pass only relevant fields
+    
+    const {output} = await prompt(promptInput);
     
     if (input.verbose) {
         console.log(`[VERBOSE FLOW - sortSearchResultsFlow] Prompt output:`, JSON.stringify(output, null, 2));
@@ -111,4 +151,3 @@ const sortSearchResultsFlow = ai.defineFlow(
     return output;
   }
 );
-

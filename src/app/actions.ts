@@ -9,31 +9,25 @@ import { generateSearchResults as fetchWebAndImageResults, type PerformWebSearch
 import { sortSearchResults, type SortSearchResultsInput as FlowSortSearchResultsInput, type SortSearchResultsOutput } from "@/ai/flows/sort-search-results-flow"; 
 
 // --- Schemas and Types for generate-answer-flow ---
-// The input schema for the action will include the verbose flag
 const ActionGenerateAnswerInputSchema = z.object({
   query: z.string().describe('The user query for which to generate an answer.'),
   verbose: z.boolean().optional().describe('Enable verbose logging for the flow.'),
 });
-// We reuse GenerateAnswerOutput from the flow as it doesn't change
 // --- End Schemas and Types from generate-answer-flow.ts ---
 
 
 // --- Schemas and Types for fetchWebAndImageResults (formerly generate-search-results-flow) ---
-// The input schema for the action will include the verbose flag
 const ActionGenerateSearchResultsInputSchema = z.object({
   query: z.string().describe('The user query for which to generate search results.'),
   verbose: z.boolean().optional().describe('Enable verbose logging for the flow.'),
 });
-// We reuse PerformWebSearchOutput (aliased as GenerateSearchResultsOutput below) as it doesn't change
 
-// Schema for a single web search result item (text-focused) - Defined locally
 const WebSearchResultItemSchema = z.object({
   title: z.string().describe('The title of the search result.'),
   link: z.string().describe('The URL of the search result.'),
   snippet: z.string().describe('A short, descriptive snippet for the search result.'),
 });
 
-// Schema for a single image result item
 const ImageResultItemSchema = z.object({
   imageUrl: z.string().url().describe('URL of the image.'),
   altText: z.string().optional().describe('Alt text for the image.'),
@@ -52,20 +46,34 @@ export type GenerateSearchResultsOutput = z.infer<typeof GenerateSearchResultsOu
 // --- End Schemas and Types from generate-search-results-flow.ts ---
 
 
-// --- Local Schemas for sortSearchResults input and output validation ---
-// The input schema for the action will include the verbose flag
+// --- Schemas for sortSearchResults input and output validation ---
+const LocationDataSchema = z.object({
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  error: z.string().optional(),
+}).optional();
+
+const DeviceInfoSchema = z.object({
+  userAgent: z.string().optional(),
+  screenWidth: z.number().optional(),
+  screenHeight: z.number().optional(),
+}).optional();
+
 const ActionSortSearchResultsInputSchema = z.object({
   query: z.string().describe('The original user query.'),
   webResults: z.array(WebSearchResultItemSchema).describe('The list of web search results to be sorted.'),
   verbose: z.boolean().optional().describe('Enable verbose logging for the flow.'),
+  location: LocationDataSchema,
+  deviceInfo: DeviceInfoSchema,
 });
-// We reuse SortSearchResultsOutput from the flow as it doesn't change.
-// --- End Local Schemas for sortSearchResults ---
+// --- End Schemas for sortSearchResults ---
 
 
 const processSearchQueryInputSchema = z.object({
   query: z.string().min(1, "Query is required."),
   verbose: z.boolean().optional(),
+  location: LocationDataSchema,
+  deviceInfo: DeviceInfoSchema,
 });
 
 export type ProcessSearchQueryInput = z.infer<typeof processSearchQueryInputSchema>;
@@ -85,17 +93,18 @@ export async function processSearchQuery(
     return { error: validatedInput.error.errors.map(e => e.message).join(", ") };
   }
 
-  const { query, verbose } = validatedInput.data;
+  const { query, verbose, location, deviceInfo } = validatedInput.data;
   if (verbose) {
-    console.log(`[VERBOSE ACTION] processSearchQuery called with query: "${query}", verbose: ${verbose}`);
+    console.log(`[VERBOSE ACTION] processSearchQuery called with query: "${query}", verbose: ${verbose}, location: ${JSON.stringify(location)}, deviceInfo: ${JSON.stringify(deviceInfo)}`);
   }
 
   try {
-    const flowArgs = { query, verbose };
+    // For flows that don't use location/deviceInfo, we only pass query and verbose
+    const baseFlowArgs = { query, verbose };
     
     const [answerResult, searchResultsCombined] = await Promise.allSettled([
-      generateAnswer(flowArgs as FlowGenerateAnswerInput), // Cast needed as flow types don't have verbose yet (will be added)
-      fetchWebAndImageResults(flowArgs as FlowPerformWebSearchInput) // Cast needed
+      generateAnswer(baseFlowArgs as FlowGenerateAnswerInput), 
+      fetchWebAndImageResults(baseFlowArgs as FlowPerformWebSearchInput)
     ]);
 
     const answer = answerResult.status === 'fulfilled' ? answerResult.value : undefined;
@@ -112,20 +121,19 @@ export async function processSearchQuery(
 
         if (parsedSearchResults.webResults && parsedSearchResults.webResults.length > 0) {
           try {
-            if (verbose) console.log(`[VERBOSE ACTION] Attempting to AI sort ${parsedSearchResults.webResults.length} web results for query: "${query}"`);
+            if (verbose) console.log(`[VERBOSE ACTION] Attempting to AI sort ${parsedSearchResults.webResults.length} web results for query: "${query}" with location and device info.`);
             
             const sortInput: FlowSortSearchResultsInput = { 
                 query, 
                 webResults: parsedSearchResults.webResults,
-                verbose 
+                verbose,
+                location: location, // Pass location
+                deviceInfo: deviceInfo, // Pass deviceInfo
             };
             
-            // Validate input for sortSearchResults using flow's expected input type
-            // (Assuming SortSearchResultsInput from flow will be updated to include verbose)
             const sortedResultsAction = await sortSearchResults(sortInput);
             
-            // Validate output of sortSearchResults (assuming SortSearchResultsOutput from flow is consistent)
-             parsedSearchResults.webResults = sortedResultsAction.sortedWebResults; // Directly use the output
+            parsedSearchResults.webResults = sortedResultsAction.sortedWebResults;
             if (verbose) console.log("[VERBOSE ACTION] Web results AI sorted successfully.");
 
           } catch (sortError) {
@@ -186,4 +194,3 @@ export async function processSearchQuery(
     return { error: `An error occurred while processing your request: ${errorMessage.substring(0,200)}` };
   }
 }
-
