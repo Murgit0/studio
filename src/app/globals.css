@@ -119,6 +119,7 @@
 
 body.rainbow-mode {
   animation: rainbow-hue-cycle-kf 3s linear infinite;
+  color: hsl(var(--rainbow-hue) 100% 50%); /* Explicitly set default text color */
 
   /* Override green-based HSL variables to use the animated --rainbow-hue */
   /* Original Green HSL values for reference: Hue ~120, Sat ~100%, Lightness varies */
