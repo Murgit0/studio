@@ -200,3 +200,87 @@ export async function processSearchQuery(
     return { error: `An error occurred while processing your request: ${errorMessage.substring(0,200)}` };
   }
 }
+
+
+// --- Schemas for Daily News Headlines ---
+const HeadlineItemSchema = z.object({
+  title: z.string(),
+  sourceName: z.string().optional(),
+  url: z.string().url(),
+  urlToImage: z.string().url().optional().nullable(),
+  description: z.string().optional().nullable(),
+  publishedAt: z.string().datetime({ offset: true }).optional(), // NewsAPI provides ISO8601
+});
+export type HeadlineItem = z.infer<typeof HeadlineItemSchema>;
+
+const FetchHeadlinesOutputSchema = z.object({
+  headlines: z.array(HeadlineItemSchema),
+  error: z.string().optional(),
+});
+export type FetchHeadlinesOutput = z.infer<typeof FetchHeadlinesOutputSchema>;
+
+const NEWS_API_PAGE_SIZE = 7; // Number of headlines to fetch
+
+export async function fetchDailyHeadlines(): Promise<FetchHeadlinesOutput> {
+  const apiKey = process.env.NEWS_API_KEY;
+
+  if (!apiKey || apiKey === 'YOUR_NEWS_API_KEY_PLACEHOLDER' || apiKey === '0de8da33df4447c8ad1b43a32cb363d4_replace_me') {
+    console.warn("NEWS_API_KEY not configured correctly. Please set it in your environment variables.");
+    return { headlines: [], error: "News API key not configured. See server logs for details." };
+  }
+
+  const newsApiUrl = `https://newsapi.org/v2/top-headlines?country=us&pageSize=${NEWS_API_PAGE_SIZE}&apiKey=${apiKey}`;
+
+  try {
+    if (process.env.NEXT_PUBLIC_VERBOSE_LOGGING === 'true') {
+        console.log(`[VERBOSE ACTION - fetchDailyHeadlines] Fetching news from: ${newsApiUrl.replace(apiKey, '[REDACTED_API_KEY]')}`);
+    }
+    const response = await fetch(newsApiUrl, { next: { revalidate: 900 } }); // Cache for 15 minutes
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error(`NewsAPI request failed with status ${response.status}:`, errorData);
+      return { headlines: [], error: `Failed to fetch news: ${errorData.message || response.statusText}` };
+    }
+
+    const data = await response.json();
+    if (process.env.NEXT_PUBLIC_VERBOSE_LOGGING === 'true') {
+        console.log('[VERBOSE ACTION - fetchDailyHeadlines] Raw NewsAPI response:', JSON.stringify(data, null, 2).substring(0, 500) + '...');
+    }
+
+
+    if (data.status === "error") {
+      console.error("NewsAPI returned an error status:", data.message);
+      return { headlines: [], error: data.message || "News API returned an error." };
+    }
+
+    const transformedHeadlines = data.articles.map((article: any) => ({
+      title: article.title,
+      sourceName: article.source?.name,
+      url: article.url,
+      urlToImage: article.urlToImage,
+      description: article.description,
+      publishedAt: article.publishedAt,
+    }));
+
+    const validationResult = z.array(HeadlineItemSchema).safeParse(transformedHeadlines);
+
+    if (!validationResult.success) {
+      console.error("NewsAPI response validation error (actions.ts):", validationResult.error.flatten());
+       if (process.env.NEXT_PUBLIC_VERBOSE_LOGGING === 'true') {
+           console.log("[VERBOSE ACTION - fetchDailyHeadlines] Data that failed validation:", JSON.stringify(transformedHeadlines, null, 2));
+       }
+      return { headlines: [], error: "Failed to validate news data format." };
+    }
+    
+    if (process.env.NEXT_PUBLIC_VERBOSE_LOGGING === 'true') {
+        console.log(`[VERBOSE ACTION - fetchDailyHeadlines] Successfully fetched and validated ${validationResult.data.length} headlines.`);
+    }
+    return { headlines: validationResult.data };
+
+  } catch (error) {
+    console.error("Error fetching daily headlines:", error);
+    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred while fetching news.";
+    return { headlines: [], error: errorMessage.substring(0,150) };
+  }
+}

@@ -40,6 +40,12 @@ const nextConfig: NextConfig = {
         hostname: 'encrypted-tbn0.gstatic.com',
         port: '',
         pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'newsapi.org', // For NewsAPI images
+        port: '',
+        pathname: '/**',
       }
       // When integrating real image search from other services,
       // you will need to add their image CDN hostnames here for next/image optimization.

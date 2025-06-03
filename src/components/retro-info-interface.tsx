@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { processSearchQuery, type SearchActionResult, type ImageResultItem as ActionImageResultItem } from "@/app/actions";
-import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, MessageCircleOff, History } from "lucide-react";
+import DailyNewsSection from "@/components/daily-news-section"; // Import the new component
+import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, MessageCircleOff, History, Newspaper } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
@@ -48,6 +49,8 @@ export default function RetroInfoInterface() {
   const [locationData, setLocationData] = useState<LocationData | null>(null);
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [showNewsSection, setShowNewsSection] = useState(true);
+
 
   useEffect(() => {
     // Get device info
@@ -134,6 +137,7 @@ export default function RetroInfoInterface() {
   async function onSubmit(values: FormData) {
     setIsLoading(true);
     setSearchResult(null);
+    // setShowNewsSection(false); // Hide news on search submission if desired, but requirement is on typing
 
     const queryToProcess = values.query;
 
@@ -204,6 +208,9 @@ export default function RetroInfoInterface() {
 
   const handleRecentSearchClick = (searchTerm: string) => {
     form.setValue("query", searchTerm);
+    if (showNewsSection) { // Also hide news if a recent search is clicked and input populates
+        setShowNewsSection(false);
+    }
     // Optionally, trigger search immediately:
     // form.handleSubmit(onSubmit)(); 
   };
@@ -237,6 +244,12 @@ export default function RetroInfoInterface() {
                         id="query"
                         placeholder="e.g., 'latest advancements in AI'"
                         {...field}
+                        onChange={(e) => {
+                          field.onChange(e); // Important to call the original onChange for react-hook-form
+                          if (e.target.value.length > 0 && showNewsSection) {
+                            setShowNewsSection(false);
+                          }
+                        }}
                         className="text-sm"
                       />
                     </FormControl>
@@ -268,6 +281,8 @@ export default function RetroInfoInterface() {
           </Form>
         </CardContent>
       </Card>
+
+      {showNewsSection && <DailyNewsSection />}
 
       {recentSearches.length > 0 && (
         <Card className="border-secondary shadow-lg shadow-secondary/20">
@@ -429,3 +444,4 @@ export default function RetroInfoInterface() {
     </div>
   );
 }
+
