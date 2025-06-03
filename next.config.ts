@@ -58,6 +58,12 @@ const nextConfig: NextConfig = {
         hostname: 'static.politico.com', // For Politico images
         port: '',
         pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'media.cnn.com', // For CNN images
+        port: '',
+        pathname: '/**',
       }
       // When integrating real image search from other services,
       // or if NewsAPI returns images from other domains,
