@@ -43,11 +43,18 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'newsapi.org', // For NewsAPI images
+        hostname: 'newsapi.org', // For NewsAPI images (though often they point to other domains)
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'ichef.bbci.co.uk', // For BBC News images
         port: '',
         pathname: '/**',
       }
       // When integrating real image search from other services,
+      // or if NewsAPI returns images from other domains,
       // you will need to add their image CDN hostnames here for next/image optimization.
     ],
   },
