@@ -52,6 +52,12 @@ const nextConfig: NextConfig = {
         hostname: 'ichef.bbci.co.uk', // For BBC News images
         port: '',
         pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'static.politico.com', // For Politico images
+        port: '',
+        pathname: '/**',
       }
       // When integrating real image search from other services,
       // or if NewsAPI returns images from other domains,
