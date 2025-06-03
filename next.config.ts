@@ -64,6 +64,12 @@ const nextConfig: NextConfig = {
         hostname: 'media.cnn.com', // For CNN images
         port: '',
         pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.rpgsite.net', // For RPGSite images
+        port: '',
+        pathname: '/**',
       }
       // When integrating real image search from other services,
       // or if NewsAPI returns images from other domains,
