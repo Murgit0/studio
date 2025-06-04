@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { fetchDailyHeadlines, type HeadlineItem } from '@/app/actions';
+import { fetchDailyHeadlines, type HeadlineItem, type LocationData } from '@/app/actions';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,17 +12,31 @@ import { formatDistanceToNow } from 'date-fns';
 
 const MAX_HEADLINES_DISPLAY = 5;
 
-export default function DailyNewsSection() {
+interface DailyNewsSectionProps {
+  locationData: LocationData | null;
+}
+
+export default function DailyNewsSection({ locationData }: DailyNewsSectionProps) {
   const [headlines, setHeadlines] = useState<HeadlineItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadHeadlines() {
+      if (!locationData) { // Wait for locationData to be available
+        // console.log("DailyNewsSection: Waiting for location data...");
+        return;
+      }
+      // console.log("DailyNewsSection: Location data received, loading headlines:", locationData);
       setIsLoading(true);
       setError(null);
       try {
-        const result = await fetchDailyHeadlines();
+        // Pass only latitude and longitude if available
+        const locInput = (locationData?.latitude && locationData?.longitude) 
+          ? { location: { latitude: locationData.latitude, longitude: locationData.longitude } } 
+          : undefined;
+          
+        const result = await fetchDailyHeadlines(locInput);
         if (result.error) {
           setError(result.error);
           setHeadlines([]);
@@ -38,7 +52,7 @@ export default function DailyNewsSection() {
       }
     }
     loadHeadlines();
-  }, []);
+  }, [locationData]); // Re-run effect if locationData changes
 
   if (isLoading) {
     return (
@@ -74,7 +88,7 @@ export default function DailyNewsSection() {
         </CardHeader>
         <CardContent>
           <p className="text-sm">Could not load headlines: {error}</p>
-          <p className="text-xs text-muted-foreground mt-1">Please ensure the NEWS_API_KEY is correctly configured.</p>
+          <p className="text-xs text-muted-foreground mt-1">Please ensure the NEWS_API_KEY is correctly configured. Location-specific news may be affected by reverse geocoding availability.</p>
         </CardContent>
       </Card>
     );
@@ -89,7 +103,7 @@ export default function DailyNewsSection() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">No news headlines available at the moment.</p>
+          <p className="text-sm text-muted-foreground">No news headlines available at the moment for your region or the default region.</p>
         </CardContent>
       </Card>
     );
@@ -157,3 +171,4 @@ export default function DailyNewsSection() {
     </Card>
   );
 }
+

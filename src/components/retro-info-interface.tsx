@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { processSearchQuery, type SearchActionResult, type ImageResultItem as ActionImageResultItem } from "@/app/actions";
+import { processSearchQuery, type SearchActionResult, type ImageResultItem as ActionImageResultItem, type LocationData } from "@/app/actions";
 import DailyNewsSection from "@/components/daily-news-section";
 import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, MessageCircleOff, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -21,11 +21,7 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-interface LocationData {
-  latitude?: number;
-  longitude?: number;
-  error?: string; // Retain error for logging or internal use if needed, though UI will show default
-}
+// LocationData is imported from actions.ts
 
 interface DeviceInfo {
   userAgent?: string;
@@ -37,7 +33,7 @@ interface DeviceInfo {
 const MAX_RECENT_SEARCHES = 5;
 const LOCAL_STORAGE_RECENT_SEARCHES_KEY = 'xpoxialRecentSearches';
 
-const DEFAULT_LOCATION_INDIA = {
+const DEFAULT_LOCATION_INDIA: LocationData = {
   latitude: 28.6139,
   longitude: 77.2090,
 };
@@ -51,7 +47,7 @@ export default function RetroInfoInterface() {
   const [rainbowModeActive, setRainbowModeActive] = useState(false);
   const [isVerboseLoggingEnabled, setIsVerboseLoggingEnabled] = useState(false);
   
-  const [locationData, setLocationData] = useState<LocationData | null>(null);
+  const [locationData, setLocationData] = useState<LocationData | null>(null); // Initialize as null
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [showNewsSection, setShowNewsSection] = useState(true);
@@ -226,7 +222,7 @@ export default function RetroInfoInterface() {
   };
   
   const handleQueryInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    form.setValue("query", event.target.value); // Manually update form value
+    form.setValue("query", event.target.value); 
     if (event.target.value.length > 0 && showNewsSection) {
       setShowNewsSection(false);
     }
@@ -254,15 +250,15 @@ export default function RetroInfoInterface() {
               <FormField
                 control={form.control}
                 name="query"
-                render={({ field }) => ( // field is passed by Controller
+                render={({ field }) => ( 
                   <FormItem>
                     <FormLabel htmlFor="query" className="text-lg">Search Query</FormLabel>
                     <FormControl>
                       <Input
                         id="query"
                         placeholder="e.g., 'latest advancements in AI'"
-                        {...field} // Spread field props here
-                        onChange={handleQueryInputChange} // Use custom handler
+                        {...field} 
+                        onChange={handleQueryInputChange} 
                         className="text-sm"
                       />
                     </FormControl>
@@ -295,7 +291,7 @@ export default function RetroInfoInterface() {
         </CardContent>
       </Card>
 
-      {showNewsSection && <DailyNewsSection />}
+      {showNewsSection && locationData && <DailyNewsSection locationData={locationData} />}
 
       {recentSearches.length > 0 && (
         <Card className="border-secondary shadow-lg shadow-secondary/20">

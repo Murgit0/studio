@@ -53,6 +53,8 @@ const LocationDataSchema = z.object({
   longitude: z.number().optional(),
   error: z.string().optional(),
 }).optional();
+export type LocationData = z.infer<typeof LocationDataSchema>;
+
 
 const DeviceInfoSchema = z.object({
   userAgent: z.string().optional(),
@@ -213,6 +215,12 @@ const HeadlineItemSchema = z.object({
 });
 export type HeadlineItem = z.infer<typeof HeadlineItemSchema>;
 
+const FetchHeadlinesInputSchema = z.object({
+  location: LocationDataSchema.optional(),
+});
+export type FetchHeadlinesInput = z.infer<typeof FetchHeadlinesInputSchema>;
+
+
 const FetchHeadlinesOutputSchema = z.object({
   headlines: z.array(HeadlineItemSchema),
   error: z.string().optional(),
@@ -221,18 +229,62 @@ export type FetchHeadlinesOutput = z.infer<typeof FetchHeadlinesOutputSchema>;
 
 const NEWS_API_PAGE_SIZE = 7; // Number of headlines to fetch
 
-export async function fetchDailyHeadlines(): Promise<FetchHeadlinesOutput> {
+export async function fetchDailyHeadlines(input?: FetchHeadlinesInput): Promise<FetchHeadlinesOutput> {
   const apiKey = process.env.NEWS_API_KEY;
+  const verboseLogging = process.env.NEXT_PUBLIC_VERBOSE_LOGGING === 'true';
 
   if (!apiKey || apiKey === 'YOUR_NEWS_API_KEY_PLACEHOLDER' || apiKey === '0de8da33df4447c8ad1b43a32cb363d4_replace_me') {
     console.warn("NEWS_API_KEY not configured correctly. Please set it in your environment variables.");
     return { headlines: [], error: "News API key not configured. See server logs for details." };
   }
 
-  const newsApiUrl = `https://newsapi.org/v2/top-headlines?country=us&pageSize=${NEWS_API_PAGE_SIZE}&apiKey=${apiKey}`;
+  let countryCode = 'us'; // Default country
+
+  if (input?.location?.latitude && input?.location?.longitude) {
+    if (verboseLogging) {
+      console.log(`[VERBOSE ACTION - fetchDailyHeadlines] Attempting reverse geocoding for lat: ${input.location.latitude}, lon: ${input.location.longitude}`);
+    }
+    try {
+      const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${input.location.latitude}&lon=${input.location.longitude}&accept-language=en`;
+      const geoResponse = await fetch(nominatimUrl, {
+        headers: {
+          'User-Agent': 'XpoxialSearchApp/1.0 (contact@example.com)' // Replace with actual contact if needed
+        }
+      });
+      if (geoResponse.ok) {
+        const geoData = await geoResponse.json();
+        if (geoData.address?.country_code) {
+          countryCode = geoData.address.country_code;
+          if (verboseLogging) {
+            console.log(`[VERBOSE ACTION - fetchDailyHeadlines] Reverse geocoding successful. Country code: ${countryCode}`);
+          }
+        } else {
+          if (verboseLogging) {
+            console.warn(`[VERBOSE ACTION - fetchDailyHeadlines] Reverse geocoding response did not contain country_code. Raw response:`, JSON.stringify(geoData).substring(0,200));
+          }
+        }
+      } else {
+        const geoErrorText = await geoResponse.text();
+        console.warn(`Reverse geocoding failed with status ${geoResponse.status}: ${geoErrorText.substring(0,200)}. Defaulting country.`);
+        if (verboseLogging) {
+          console.warn(`[VERBOSE ACTION - fetchDailyHeadlines] Reverse geocoding failed. Status: ${geoResponse.status}, Text: ${geoErrorText.substring(0,200)}`);
+        }
+      }
+    } catch (geoError) {
+      console.error("Error during reverse geocoding:", geoError);
+       if (verboseLogging) {
+          console.error(`[VERBOSE ACTION - fetchDailyHeadlines] Exception during reverse geocoding:`, geoError);
+        }
+    }
+  } else if (verboseLogging) {
+    console.log(`[VERBOSE ACTION - fetchDailyHeadlines] No location data provided or incomplete. Defaulting to country: ${countryCode}`);
+  }
+
+
+  const newsApiUrl = `https://newsapi.org/v2/top-headlines?country=${countryCode}&pageSize=${NEWS_API_PAGE_SIZE}&apiKey=${apiKey}`;
 
   try {
-    if (process.env.NEXT_PUBLIC_VERBOSE_LOGGING === 'true') {
+    if (verboseLogging) {
         console.log(`[VERBOSE ACTION - fetchDailyHeadlines] Fetching news from: ${newsApiUrl.replace(apiKey, '[REDACTED_API_KEY]')}`);
     }
     const response = await fetch(newsApiUrl, { next: { revalidate: 900 } }); // Cache for 15 minutes
@@ -244,7 +296,7 @@ export async function fetchDailyHeadlines(): Promise<FetchHeadlinesOutput> {
     }
 
     const data = await response.json();
-    if (process.env.NEXT_PUBLIC_VERBOSE_LOGGING === 'true') {
+    if (verboseLogging) {
         console.log('[VERBOSE ACTION - fetchDailyHeadlines] Raw NewsAPI response:', JSON.stringify(data, null, 2).substring(0, 500) + '...');
     }
 
@@ -267,14 +319,14 @@ export async function fetchDailyHeadlines(): Promise<FetchHeadlinesOutput> {
 
     if (!validationResult.success) {
       console.error("NewsAPI response validation error (actions.ts):", validationResult.error.flatten());
-       if (process.env.NEXT_PUBLIC_VERBOSE_LOGGING === 'true') {
+       if (verboseLogging) {
            console.log("[VERBOSE ACTION - fetchDailyHeadlines] Data that failed validation:", JSON.stringify(transformedHeadlines, null, 2));
        }
       return { headlines: [], error: "Failed to validate news data format." };
     }
     
-    if (process.env.NEXT_PUBLIC_VERBOSE_LOGGING === 'true') {
-        console.log(`[VERBOSE ACTION - fetchDailyHeadlines] Successfully fetched and validated ${validationResult.data.length} headlines.`);
+    if (verboseLogging) {
+        console.log(`[VERBOSE ACTION - fetchDailyHeadlines] Successfully fetched and validated ${validationResult.data.length} headlines for country ${countryCode}.`);
     }
     return { headlines: validationResult.data };
 
@@ -284,3 +336,4 @@ export async function fetchDailyHeadlines(): Promise<FetchHeadlinesOutput> {
     return { headlines: [], error: errorMessage.substring(0,150) };
   }
 }
+
