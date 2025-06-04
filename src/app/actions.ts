@@ -230,12 +230,18 @@ export type FetchHeadlinesOutput = z.infer<typeof FetchHeadlinesOutputSchema>;
 const NEWS_API_PAGE_SIZE = 7; // Number of headlines to fetch
 
 export async function fetchDailyHeadlines(input?: FetchHeadlinesInput): Promise<FetchHeadlinesOutput> {
-  const apiKey = process.env.NEWS_API_KEY;
   const verboseLogging = process.env.NEXT_PUBLIC_VERBOSE_LOGGING === 'true';
+  const apiKey = process.env.NEWS_API_KEY;
 
-  if (!apiKey || apiKey === 'YOUR_NEWS_API_KEY_PLACEHOLDER' || apiKey === '0de8da33df4447c8ad1b43a32cb363d4_replace_me') {
-    console.warn("NEWS_API_KEY not configured correctly. Please set it in your environment variables.");
-    return { headlines: [], error: "News API key not configured. See server logs for details." };
+  if (verboseLogging) {
+    console.log(`[VERBOSE ACTION - fetchDailyHeadlines] Retrieved NEWS_API_KEY from process.env: '${apiKey ? apiKey.substring(0, 5) + '...' : 'undefined'}'`);
+  }
+
+  const knownPlaceholders = ['YOUR_NEWS_API_KEY_PLACEHOLDER', 'REPLACE_WITH_YOUR_NEWS_API_KEY', '0de8da33df4447c8ad1b43a32cb363d4'];
+  if (!apiKey || knownPlaceholders.some(p => apiKey === p)) {
+    const message = "News API key is a placeholder or not configured. Please obtain a valid key from newsapi.org and set it in your environment variables (.env and on Netlify).";
+    console.warn(`[fetchDailyHeadlines] ${message}`);
+    return { headlines: [], error: message };
   }
 
   let countryCode = 'us'; // Default country
@@ -248,7 +254,7 @@ export async function fetchDailyHeadlines(input?: FetchHeadlinesInput): Promise<
       const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${input.location.latitude}&lon=${input.location.longitude}&accept-language=en`;
       const geoResponse = await fetch(nominatimUrl, {
         headers: {
-          'User-Agent': 'XpoxialSearchApp/1.0 (contact@example.com)' // Replace with actual contact if needed
+          'User-Agent': 'XpoxialSearchApp/1.0 (user@example.com)' 
         }
       });
       if (geoResponse.ok) {
@@ -285,26 +291,39 @@ export async function fetchDailyHeadlines(input?: FetchHeadlinesInput): Promise<
 
   try {
     if (verboseLogging) {
-        console.log(`[VERBOSE ACTION - fetchDailyHeadlines] Fetching news from: ${newsApiUrl.replace(apiKey, '[REDACTED_API_KEY]')}`);
+        console.log(`[VERBOSE ACTION - fetchDailyHeadlines] Fetching news from URL (key redacted): ${newsApiUrl.replace(apiKey, '[REDACTED_API_KEY]')}`);
     }
     const response = await fetch(newsApiUrl, { next: { revalidate: 900 } }); // Cache for 15 minutes
 
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error(`NewsAPI request failed with status ${response.status}:`, errorData);
-      return { headlines: [], error: `Failed to fetch news: ${errorData.message || response.statusText}` };
+      let errorDataMessage = response.statusText;
+      try {
+        const errorData = await response.json();
+        if (verboseLogging) console.log(`[VERBOSE ACTION - fetchDailyHeadlines] NewsAPI error response JSON:`, errorData);
+        errorDataMessage = errorData.message || errorDataMessage;
+      } catch (jsonError) {
+        if (verboseLogging) console.log(`[VERBOSE ACTION - fetchDailyHeadlines] NewsAPI error response was not JSON. Status: ${response.status}, Text: ${await response.text().catch(() => 'Could not read error text')}`);
+      }
+      console.error(`NewsAPI request failed with status ${response.status}:`, errorDataMessage);
+      return { headlines: [], error: `Failed to fetch news from NewsAPI: ${errorDataMessage} (Status: ${response.status})` };
     }
 
     const data = await response.json();
     if (verboseLogging) {
-        console.log('[VERBOSE ACTION - fetchDailyHeadlines] Raw NewsAPI response:', JSON.stringify(data, null, 2).substring(0, 500) + '...');
+        console.log('[VERBOSE ACTION - fetchDailyHeadlines] Raw NewsAPI response status:', data.status, 'Total results:', data.totalResults);
+        if (data.articles) console.log('[VERBOSE ACTION - fetchDailyHeadlines] First article sample:', data.articles.length > 0 ? JSON.stringify(data.articles[0]).substring(0,300) + '...' : 'No articles');
     }
 
 
     if (data.status === "error") {
-      console.error("NewsAPI returned an error status:", data.message);
-      return { headlines: [], error: data.message || "News API returned an error." };
+      console.error("NewsAPI returned an error status in response body:", data.message);
+      return { headlines: [], error: data.message || "News API returned an error in response body." };
     }
+     if (!data.articles || data.articles.length === 0) {
+      if (verboseLogging) console.log(`[VERBOSE ACTION - fetchDailyHeadlines] NewsAPI returned 0 articles for country ${countryCode}.`);
+      return { headlines: [], error: `No news articles found for your region (${countryCode}).` };
+    }
+
 
     const transformedHeadlines = data.articles.map((article: any) => ({
       title: article.title,
@@ -321,8 +340,9 @@ export async function fetchDailyHeadlines(input?: FetchHeadlinesInput): Promise<
       console.error("NewsAPI response validation error (actions.ts):", validationResult.error.flatten());
        if (verboseLogging) {
            console.log("[VERBOSE ACTION - fetchDailyHeadlines] Data that failed validation:", JSON.stringify(transformedHeadlines, null, 2));
+           console.log("[VERBOSE ACTION - fetchDailyHeadlines] Validation errors:", JSON.stringify(validationResult.error.flatten().fieldErrors, null, 2));
        }
-      return { headlines: [], error: "Failed to validate news data format." };
+      return { headlines: [], error: "Failed to validate news data format after fetching from NewsAPI." };
     }
     
     if (verboseLogging) {
@@ -333,7 +353,11 @@ export async function fetchDailyHeadlines(input?: FetchHeadlinesInput): Promise<
   } catch (error) {
     console.error("Error fetching daily headlines:", error);
     const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred while fetching news.";
+     if (verboseLogging) {
+        console.error('[VERBOSE ACTION - fetchDailyHeadlines] Caught exception:', error);
+    }
     return { headlines: [], error: errorMessage.substring(0,150) };
   }
 }
+
 
