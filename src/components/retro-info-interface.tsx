@@ -11,8 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { processSearchQuery, type SearchActionResult, type ImageResultItem as ActionImageResultItem } from "@/app/actions";
-import DailyNewsSection from "@/components/daily-news-section"; // Import the new component
-import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, MessageCircleOff, History, Newspaper } from "lucide-react";
+import DailyNewsSection from "@/components/daily-news-section";
+import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, MessageCircleOff, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
@@ -24,7 +24,7 @@ type FormData = z.infer<typeof formSchema>;
 interface LocationData {
   latitude?: number;
   longitude?: number;
-  error?: string;
+  error?: string; // Retain error for logging or internal use if needed, though UI will show default
 }
 
 interface DeviceInfo {
@@ -36,6 +36,11 @@ interface DeviceInfo {
 
 const MAX_RECENT_SEARCHES = 5;
 const LOCAL_STORAGE_RECENT_SEARCHES_KEY = 'xpoxialRecentSearches';
+
+const DEFAULT_LOCATION_INDIA = {
+  latitude: 28.6139,
+  longitude: 77.2090,
+};
 
 export default function RetroInfoInterface() {
   const [searchResult, setSearchResult] = useState<SearchActionResult | null>(null);
@@ -70,7 +75,7 @@ export default function RetroInfoInterface() {
       os: os,
     });
 
-    // Get location
+    // Get location or set default
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -80,18 +85,25 @@ export default function RetroInfoInterface() {
           });
         },
         (error) => {
-          console.warn(`Geolocation error: ${error.message}`);
-          setLocationData({ error: error.message });
+          console.warn(`Geolocation error: ${error.message}. Defaulting to India.`);
+          setLocationData(DEFAULT_LOCATION_INDIA);
           toast({
             variant: "default",
-            title: "Location Access",
-            description: `Could not get location: ${error.message}. Some features might be limited.`,
-            duration: 5000,
+            title: "Location Information",
+            description: `Could not determine your precise location. Using a default location (India) for context. Reason: ${error.message}`,
+            duration: 7000,
           });
         }
       );
     } else {
-      setLocationData({ error: "Geolocation is not supported by this browser." });
+      console.warn("Geolocation is not supported by this browser. Defaulting to India.");
+      setLocationData(DEFAULT_LOCATION_INDIA);
+      toast({
+        variant: "default",
+        title: "Location Information",
+        description: "Geolocation is not supported by this browser. Using a default location (India) for context.",
+        duration: 7000,
+      });
     }
 
     // Load recent searches from localStorage
@@ -137,7 +149,7 @@ export default function RetroInfoInterface() {
   async function onSubmit(values: FormData) {
     setIsLoading(true);
     setSearchResult(null);
-    // setShowNewsSection(false); // Hide news on search submission if desired, but requirement is on typing
+    // setShowNewsSection should already be false if user typed
 
     const queryToProcess = values.query;
 
@@ -155,9 +167,9 @@ export default function RetroInfoInterface() {
       const response = await processSearchQuery({ 
         query: queryToProcess,
         verbose: isVerboseLoggingEnabled,
-        location: locationData || undefined, 
+        location: locationData || DEFAULT_LOCATION_INDIA, // Ensure locationData is always an object
         deviceInfo: deviceInfo || undefined,
-        recentSearches: updatedRecentSearches, // Pass recent searches
+        recentSearches: updatedRecentSearches,
       });
       setSearchResult(response);
 
@@ -208,12 +220,18 @@ export default function RetroInfoInterface() {
 
   const handleRecentSearchClick = (searchTerm: string) => {
     form.setValue("query", searchTerm);
-    if (showNewsSection) { // Also hide news if a recent search is clicked and input populates
+    if (showNewsSection) {
         setShowNewsSection(false);
     }
-    // Optionally, trigger search immediately:
-    // form.handleSubmit(onSubmit)(); 
   };
+  
+  const handleQueryInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    form.setValue("query", event.target.value); // Manually update form value
+    if (event.target.value.length > 0 && showNewsSection) {
+      setShowNewsSection(false);
+    }
+  };
+
 
   const fetchedImages: ActionImageResultItem[] = searchResult?.searchResults?.images || [];
 
@@ -236,20 +254,15 @@ export default function RetroInfoInterface() {
               <FormField
                 control={form.control}
                 name="query"
-                render={({ field }) => (
+                render={({ field }) => ( // field is passed by Controller
                   <FormItem>
                     <FormLabel htmlFor="query" className="text-lg">Search Query</FormLabel>
                     <FormControl>
                       <Input
                         id="query"
                         placeholder="e.g., 'latest advancements in AI'"
-                        {...field}
-                        onChange={(e) => {
-                          field.onChange(e); // Important to call the original onChange for react-hook-form
-                          if (e.target.value.length > 0 && showNewsSection) {
-                            setShowNewsSection(false);
-                          }
-                        }}
+                        {...field} // Spread field props here
+                        onChange={handleQueryInputChange} // Use custom handler
                         className="text-sm"
                       />
                     </FormControl>
