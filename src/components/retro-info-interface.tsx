@@ -83,23 +83,27 @@ export default function RetroInfoInterface() {
         (error) => {
           console.warn(`Geolocation error: ${error.message}. Defaulting to India.`);
           setLocationData(DEFAULT_LOCATION_INDIA);
-          toast({
-            variant: "default",
-            title: "Location Information",
-            description: `Could not determine your precise location. Using a default location (India) for context. Reason: ${error.message}`,
-            duration: 7000,
-          });
+          setTimeout(() => {
+            toast({
+              variant: "default",
+              title: "Location Information",
+              description: `Could not determine your precise location. Using a default location (India) for context. Reason: ${error.message}`,
+              duration: 7000,
+            });
+          }, 0);
         }
       );
     } else {
       console.warn("Geolocation is not supported by this browser. Defaulting to India.");
       setLocationData(DEFAULT_LOCATION_INDIA);
-      toast({
-        variant: "default",
-        title: "Location Information",
-        description: "Geolocation is not supported by this browser. Using a default location (India) for context.",
-        duration: 7000,
-      });
+      setTimeout(() => {
+        toast({
+          variant: "default",
+          title: "Location Information",
+          description: "Geolocation is not supported by this browser. Using a default location (India) for context.",
+          duration: 7000,
+        });
+      }, 0);
     }
 
     // Load recent searches from localStorage
