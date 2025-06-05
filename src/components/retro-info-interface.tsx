@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { processSearchQuery, type SearchActionResult, type ImageResultItem as ActionImageResultItem, type LocationData } from "@/app/actions";
-import DailyNewsSection from "@/components/daily-news-section";
 import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, MessageCircleOff, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -50,7 +49,6 @@ export default function RetroInfoInterface() {
   const [locationData, setLocationData] = useState<LocationData | null>(null); // Initialize as null
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [showNewsSection, setShowNewsSection] = useState(true);
 
 
   useEffect(() => {
@@ -149,7 +147,6 @@ export default function RetroInfoInterface() {
   async function onSubmit(values: FormData) {
     setIsLoading(true);
     setSearchResult(null);
-    // setShowNewsSection should already be false if user typed
 
     const queryToProcess = values.query;
 
@@ -220,16 +217,10 @@ export default function RetroInfoInterface() {
 
   const handleRecentSearchClick = (searchTerm: string) => {
     form.setValue("query", searchTerm);
-    if (showNewsSection) {
-        setShowNewsSection(false);
-    }
   };
   
   const handleQueryInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     form.setValue("query", event.target.value); 
-    if (event.target.value.length > 0 && showNewsSection) {
-      setShowNewsSection(false);
-    }
   };
 
 
@@ -294,8 +285,6 @@ export default function RetroInfoInterface() {
           </Form>
         </CardContent>
       </Card>
-
-      {showNewsSection && locationData && <DailyNewsSection locationData={locationData} />}
 
       {recentSearches.length > 0 && (
         <Card className="border-secondary shadow-lg shadow-secondary/20">
@@ -457,4 +446,3 @@ export default function RetroInfoInterface() {
     </div>
   );
 }
-
