@@ -3,11 +3,12 @@
 
 import { useEffect, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase, supabaseConfigured } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
-import { LogIn, LogOut, Github, UserCircle } from 'lucide-react';
+import { LogIn, LogOut, Github, UserCircle, AlertTriangle } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function AuthStatus() {
   const [session, setSession] = useState<Session | null>(null);
@@ -16,22 +17,28 @@ export default function AuthStatus() {
   const { toast } = useToast();
 
   useEffect(() => {
+    if (!supabaseConfigured || !supabase) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true); // Set loading true only if configured and attempting to get session
     const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
-      setUser(session?.user ?? null);
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
       setLoading(false);
     };
 
     getSession();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
+      (_event, newSession) => {
+        setSession(newSession);
+        setUser(newSession?.user ?? null);
+        setLoading(false); // Update loading state on auth change
         if (_event === 'SIGNED_IN') {
-          toast({ title: "Login Successful", description: `Welcome back, ${session?.user?.email || 'user'}!` });
+          toast({ title: "Login Successful", description: `Welcome back, ${newSession?.user?.email || 'user'}!` });
         } else if (_event === 'SIGNED_OUT') {
           toast({ title: "Logout Successful", description: "You have been logged out." });
         }
@@ -41,24 +48,46 @@ export default function AuthStatus() {
     return () => {
       authListener?.unsubscribe();
     };
-  }, [toast]);
+  }, [supabase, toast, supabaseConfigured]); // supabaseConfigured ensures effect re-evaluates if it could change (it's module-level, so once)
+
+  if (!supabaseConfigured) {
+    return (
+      <Card className="border-destructive bg-destructive/10 text-destructive-foreground mt-4 max-w-md mx-auto">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="h-5 w-5" /> Supabase Not Configured
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CardDescription className="text-destructive-foreground/90 text-sm">
+            Please set your <code>NEXT_PUBLIC_SUPABASE_URL</code> and <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in the <code>.env</code> file at the root of your project.
+            <br /><br />
+            After saving the <code>.env</code> file, you <strong className="text-destructive font-bold">MUST restart</strong> your Next.js development server (usually by stopping it with Ctrl+C and running <code>npm run dev</code> again).
+            <br /><br />
+            Also ensure these variables are set in your Netlify deployment environment if applicable.
+          </CardDescription>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const handleLogin = async () => {
+    if (!supabase) return;
     setLoading(true);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'github',
       options: {
-        redirectTo: window.location.origin, // Or a specific callback page
+        redirectTo: window.location.origin,
       },
     });
     if (error) {
       toast({ variant: "destructive", title: "Login Error", description: error.message });
       setLoading(false);
     }
-    // Supabase handles the redirect
   };
 
   const handleLogout = async () => {
+    if (!supabase) return;
     setLoading(true);
     const { error } = await supabase.auth.signOut();
     if (error) {
