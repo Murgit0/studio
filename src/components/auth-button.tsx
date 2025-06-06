@@ -1,1 +1,3 @@
-// This file is intentionally left blank as it is being removed.
+
+// This file is intentionally left blank and will be removed by the process.
+// Its functionality is being replaced by AuthStatus.tsx

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, ChangeEvent } from "react";
 import Image from 'next/image';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,16 +11,15 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { processSearchQuery, type SearchActionResult, type ImageResultItem as ActionImageResultItem, type LocationData } from "@/app/actions";
-import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, MessageCircleOff, History } from "lucide-react";
+import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, MessageCircleOff, History, Newspaper } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import AuthStatus from '@/components/AuthStatus'; // Added import
 
 const formSchema = z.object({
   query: z.string().min(3, { message: "Query must be at least 3 characters." }),
 });
 
 type FormData = z.infer<typeof formSchema>;
-
-// LocationData is imported from actions.ts
 
 interface DeviceInfo {
   userAgent?: string;
@@ -46,13 +45,11 @@ export default function RetroInfoInterface() {
   const [rainbowModeActive, setRainbowModeActive] = useState(false);
   const [isVerboseLoggingEnabled, setIsVerboseLoggingEnabled] = useState(false);
   
-  const [locationData, setLocationData] = useState<LocationData | null>(null); // Initialize as null
+  const [locationData, setLocationData] = useState<LocationData>(DEFAULT_LOCATION_INDIA); 
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-
-
+  
   useEffect(() => {
-    // Get device info
     const userAgent = navigator.userAgent;
     let os = "Unknown OS";
     if (userAgent.indexOf("Win") !== -1) os = "Windows";
@@ -69,7 +66,6 @@ export default function RetroInfoInterface() {
       os: os,
     });
 
-    // Get location or set default
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -82,12 +78,12 @@ export default function RetroInfoInterface() {
           console.warn(`Geolocation error: ${error.message}. Defaulting to India.`);
           setLocationData(DEFAULT_LOCATION_INDIA);
           setTimeout(() => {
-            toast({
-              variant: "default",
-              title: "Location Information",
-              description: `Could not determine your precise location. Using a default location (India) for context. Reason: ${error.message}`,
-              duration: 7000,
-            });
+             toast({
+                variant: "default",
+                title: "Location Information",
+                description: `Could not determine your precise location. Using a default location (India) for context. Reason: ${error.message}`,
+                duration: 7000,
+             });
           }, 0);
         }
       );
@@ -96,15 +92,14 @@ export default function RetroInfoInterface() {
       setLocationData(DEFAULT_LOCATION_INDIA);
       setTimeout(() => {
         toast({
-          variant: "default",
-          title: "Location Information",
-          description: "Geolocation is not supported by this browser. Using a default location (India) for context.",
-          duration: 7000,
+            variant: "default",
+            title: "Location Information",
+            description: "Geolocation is not supported by this browser. Using a default location (India) for context.",
+            duration: 7000,
         });
       }, 0);
     }
 
-    // Load recent searches from localStorage
     try {
       const storedSearches = localStorage.getItem(LOCAL_STORAGE_RECENT_SEARCHES_KEY);
       if (storedSearches) {
@@ -129,7 +124,7 @@ export default function RetroInfoInterface() {
     setTitleClickCount(newClickCount);
     if (newClickCount >= 2) {
       setRainbowModeActive(prev => !prev);
-      setTitleClickCount(0); // Reset for next double-click
+      setTitleClickCount(0); 
     }
   };
 
@@ -147,10 +142,8 @@ export default function RetroInfoInterface() {
   async function onSubmit(values: FormData) {
     setIsLoading(true);
     setSearchResult(null);
-
     const queryToProcess = values.query;
 
-    // Update recent searches
     const updatedRecentSearches = [queryToProcess, ...recentSearches.filter(rs => rs !== queryToProcess)].slice(0, MAX_RECENT_SEARCHES);
     setRecentSearches(updatedRecentSearches);
     try {
@@ -159,12 +152,11 @@ export default function RetroInfoInterface() {
       console.error("Failed to save recent searches to localStorage:", error);
     }
 
-
     try {
       const response = await processSearchQuery({ 
         query: queryToProcess,
         verbose: isVerboseLoggingEnabled,
-        location: locationData || DEFAULT_LOCATION_INDIA, // Ensure locationData is always an object
+        location: locationData, 
         deviceInfo: deviceInfo || undefined,
         recentSearches: updatedRecentSearches,
       });
@@ -219,8 +211,8 @@ export default function RetroInfoInterface() {
     form.setValue("query", searchTerm);
   };
   
-  const handleQueryInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    form.setValue("query", event.target.value); 
+  const handleQueryInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    form.setValue("query", event.target.value);
   };
 
 
@@ -228,14 +220,18 @@ export default function RetroInfoInterface() {
 
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-8">
-      <header className="text-center">
+      <header className="flex justify-between items-center text-center mb-4">
+        <div className="flex-1"></div> {/* Spacer */}
         <h1
           onClick={handleTitleClick}
-          className="text-5xl font-bold text-primary mb-2 cursor-pointer select-none"
+          className="text-5xl font-bold text-primary cursor-pointer select-none flex-grow text-center"
           title="Try clicking me twice!"
         >
           Xpoxial Search
         </h1>
+        <div className="flex-1 flex justify-end">
+           <AuthStatus />
+        </div>
       </header>
 
       <Card className="border-primary shadow-lg shadow-primary/20">
