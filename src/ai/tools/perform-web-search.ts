@@ -63,6 +63,8 @@ export async function performWebSearch(input: PerformWebSearchInput): Promise<Pe
 
 const MAX_WEB_RESULTS = 10;
 const MAX_IMAGES_TO_FETCH = 20;
+const MAX_API_ATTEMPTS = 2; // Max 1 initial + 1 retry
+const RETRY_DELAY_MS = 500;
 
 async function performWebSearchToolHandler(input: PerformWebSearchInput): Promise<PerformWebSearchOutput> {
   if (input.verbose) {
@@ -76,44 +78,66 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
   let images: ImageResultItem[] = [];
   let googleSearchData: any = null;
 
+  // --- Google Custom Search with Retry ---
   if (googleApiKey && googleSearchEngineId && googleSearchEngineId !== 'YOUR_SEARCH_ENGINE_ID') {
-    try {
-      if (input.verbose) console.log(`[VERBOSE TOOL] Fetching web results from Google Custom Search for query: "${input.query}"`);
-      const googleSearchUrl = `https://www.googleapis.com/customsearch/v1?key=${googleApiKey}&cx=${googleSearchEngineId}&q=${encodeURIComponent(input.query)}&num=${MAX_WEB_RESULTS}`;
-      if (input.verbose) console.log(`[VERBOSE TOOL] Google Search URL: ${googleSearchUrl}`);
-      const response = await fetch(googleSearchUrl);
+    let attempts = 0;
+    while (attempts < MAX_API_ATTEMPTS && webResults.length === 0) {
+      attempts++;
+      if (input.verbose && attempts > 1) {
+        console.log(`[VERBOSE TOOL] Retrying Google Custom Search (attempt ${attempts}/${MAX_API_ATTEMPTS}) for query: "${input.query}"`);
+      }
+      try {
+        const googleSearchUrl = `https://www.googleapis.com/customsearch/v1?key=${googleApiKey}&cx=${googleSearchEngineId}&q=${encodeURIComponent(input.query)}&num=${MAX_WEB_RESULTS}`;
+        if (input.verbose) console.log(`[VERBOSE TOOL] Google Search URL (attempt ${attempts}): ${googleSearchUrl}`);
+        const response = await fetch(googleSearchUrl);
 
-      if (!response.ok) {
-        const errorData = await response.text();
-        console.error(`Google Search API request failed with status ${response.status}: ${errorData}`);
-        if (input.verbose) console.log(`[VERBOSE TOOL] Google Search API error response text: ${errorData}`);
-      } else {
-        googleSearchData = await response.json();
-        if (input.verbose) console.log('[VERBOSE TOOL] Google Search API Raw Response:', JSON.stringify(googleSearchData, null, 2));
-        
-        if (googleSearchData.items && googleSearchData.items.length > 0) {
-          webResults = googleSearchData.items.map((item: any): WebSearchResultItem => ({
-            title: item.title,
-            link: item.link,
-            snippet: item.snippet,
-          }));
-          console.log(`Fetched ${webResults.length} web result(s) from Google.`);
+        if (!response.ok) {
+          if (attempts >= MAX_API_ATTEMPTS) {
+            const errorData = await response.text();
+            console.error(`Google Search API request failed on final attempt ${attempts}/${MAX_API_ATTEMPTS} with status ${response.status}: ${errorData}`);
+            if (input.verbose) console.log(`[VERBOSE TOOL] Google Search API error response text (attempt ${attempts}): ${errorData}`);
+          }
+          // If not the last attempt, allow loop to retry
         } else {
-          console.log(`No web results found on Google for "${input.query}".`);
+          googleSearchData = await response.json();
+          if (input.verbose) console.log(`[VERBOSE TOOL] Google Search API Raw Response (attempt ${attempts}):`, JSON.stringify(googleSearchData, null, 2));
+          
+          if (googleSearchData.items && googleSearchData.items.length > 0) {
+            webResults = googleSearchData.items.map((item: any): WebSearchResultItem => ({
+              title: item.title,
+              link: item.link,
+              snippet: item.snippet,
+            }));
+            console.log(`Fetched ${webResults.length} web result(s) from Google (attempt ${attempts}/${MAX_API_ATTEMPTS}).`);
+            break; // Success, exit retry loop
+          } else {
+            if (attempts >= MAX_API_ATTEMPTS) {
+              console.log(`No web results found on Google after ${attempts} attempts for "${input.query}".`);
+            }
+          }
+        }
+      } catch (error) {
+        if (attempts >= MAX_API_ATTEMPTS) {
+          console.error(`Error fetching web search results from Google on final attempt ${attempts}/${MAX_API_ATTEMPTS}:`, error);
+          if (input.verbose) console.log(`[VERBOSE TOOL] Exception during Google Search API call (attempt ${attempts}):`, error);
         }
       }
-    } catch (error) {
-      console.error('Error fetching web search results from Google:', error);
-      if (input.verbose) console.log('[VERBOSE TOOL] Exception during Google Search API call:', error);
+      if (webResults.length === 0 && attempts < MAX_API_ATTEMPTS) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS)); 
+      }
     }
   } else {
     let warningMessage = 'Google Custom Search not configured: ';
     if (!googleApiKey) warningMessage += 'SEARCH_API_KEY missing. ';
     if (!googleSearchEngineId || googleSearchEngineId === 'YOUR_SEARCH_ENGINE_ID') warningMessage += 'SEARCH_ENGINE_ID missing or placeholder. ';
-    console.warn(`${warningMessage}Will attempt DuckDuckScrape for web results.`);
-    if (input.verbose) console.log(`[VERBOSE TOOL] ${warningMessage}`);
+    // Only log this warning if Google Search was intended but not configured.
+    if (googleApiKey || googleSearchEngineId) {
+        console.warn(`${warningMessage}Will attempt DuckDuckScrape for web results.`);
+        if (input.verbose) console.log(`[VERBOSE TOOL] ${warningMessage}`);
+    }
   }
 
+  // --- Fallback to DuckDuckScrape if Google Search failed or no results ---
   if (webResults.length === 0) {
     try {
       if (input.verbose) console.log(`[VERBOSE TOOL] Google Search failed or returned no results. Fetching web results from DuckDuckScrape for query: "${input.query}"`);
@@ -143,13 +167,14 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
     }
   }
   
+  // --- Mock web results if all above fail ---
   if (webResults.length === 0) {
       console.warn('No web results from Google or DuckDuckScrape. Returning mock web results.');
       if (input.verbose) console.log('[VERBOSE TOOL] Using mock web results.');
       webResults = getMockSearchResults(input.query).webResults;
   }
 
-
+  // --- Image Extraction from Google Search Data (if available) ---
   if (googleSearchData?.items) {
     for (const item of googleSearchData.items) {
       if (images.length >= MAX_IMAGES_TO_FETCH) break;
@@ -162,11 +187,9 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
           imageUrl: potentialImageUrl,
           altText: item.pagemap?.metatags?.[0]?.['og:image:alt'] || item.pagemap?.metatags?.[0]?.['twitter:image:alt'] || `Image from ${item.title}`,
           sourcePlatform: "Google",
-          sourceUrl: item.link, // item.link is the page link
+          sourceUrl: item.link,
         };
-
         const parsedImageEntry = ImageResultItemSchema.safeParse(imageEntryCandidate);
-
         if (parsedImageEntry.success) {
           images.push(parsedImageEntry.data);
         } else {
@@ -179,73 +202,103 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
     if (input.verbose) console.log(`[VERBOSE TOOL] Extracted ${images.length} valid image(s) from Google Custom Search results data after schema validation.`);
   }
 
+  // --- Pexels Image Search with Retry (if needed) ---
   if (images.length < MAX_IMAGES_TO_FETCH && pexelsApiKey && pexelsApiKey !== "YOUR_PEXELS_API_KEY_HERE") {
-    const imagesNeededFromPexels = MAX_IMAGES_TO_FETCH - images.length;
-    try {
-      if (input.verbose) console.log(`[VERBOSE TOOL] Attempting to fetch up to ${imagesNeededFromPexels} image(s) from Pexels for query: "${input.query}"`);
-      const pexelsUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(input.query)}&per_page=${imagesNeededFromPexels}`;
-      if (input.verbose) console.log(`[VERBOSE TOOL] Pexels API URL: ${pexelsUrl}`);
-      const pexelsResponse = await fetch(pexelsUrl, {
-        headers: { Authorization: pexelsApiKey }
-      });
-      if (pexelsResponse.ok) {
-        const pexelsData = await pexelsResponse.json();
-        if (input.verbose) console.log('[VERBOSE TOOL] Pexels API Raw Response:', JSON.stringify(pexelsData, null, 2));
-        if (pexelsData.photos && pexelsData.photos.length > 0) {
-          let pexelsImagesAdded = 0;
-          pexelsData.photos.forEach((photo: any) => {
-            if (images.length >= MAX_IMAGES_TO_FETCH) return;
-            
-            const pexelsImageCandidate = {
-                imageUrl: photo.src?.medium,
-                altText: photo.alt || `Image by ${photo.photographer} on Pexels`,
-                photographerName: photo.photographer,
-                photographerUrl: photo.photographer_url,
-                sourcePlatform: "Pexels",
-                sourceUrl: photo.url,
-            };
-            
-            const parsedPexelsImage = ImageResultItemSchema.safeParse(pexelsImageCandidate);
+    let pexelsAttempts = 0;
+    let pexelsCallSuccessfulInLoop = false; 
 
-            if (parsedPexelsImage.success) {
-                if (!images.find(img => img.imageUrl === parsedPexelsImage.data.imageUrl)) {
-                    images.push(parsedPexelsImage.data);
-                    pexelsImagesAdded++;
-                }
-            } else {
-                 if (input.verbose) {
-                    console.warn(`[VERBOSE TOOL] Skipping Pexels image due to schema validation failure. imageUrl: ${photo.src?.medium}. Errors:`, parsedPexelsImage.error.flatten().fieldErrors, "Input data:", pexelsImageCandidate);
-                }
-            }
-          });
-          if (input.verbose) console.log(`[VERBOSE TOOL] Fetched and added ${pexelsImagesAdded} valid image(s) from Pexels after schema validation.`);
-        } else {
-          if (input.verbose) console.log(`[VERBOSE TOOL] No images found on Pexels for "${input.query}".`);
-        }
-      } else {
-        const pexelsError = await pexelsResponse.text();
-        console.error(`Pexels API request failed for query "${input.query}" with status ${pexelsResponse.status}: ${pexelsError}`);
-        if (input.verbose) console.log(`[VERBOSE TOOL] Pexels API error response text: ${pexelsError}`);
+    while (pexelsAttempts < MAX_API_ATTEMPTS && !pexelsCallSuccessfulInLoop && (images.length < MAX_IMAGES_TO_FETCH)) {
+      pexelsAttempts++;
+      const imagesNeededFromPexels = MAX_IMAGES_TO_FETCH - images.length;
+      if (imagesNeededFromPexels <= 0) break;
+
+      if (input.verbose && pexelsAttempts > 1) {
+        console.log(`[VERBOSE TOOL] Retrying Pexels API (attempt ${pexelsAttempts}/${MAX_API_ATTEMPTS}) for query: "${input.query}"`);
       }
-    } catch (e) {
-      console.error(`Error fetching from Pexels for query "${input.query}":`, e);
-      if (input.verbose) console.log(`[VERBOSE TOOL] Exception during Pexels API call:`, e);
+
+      try {
+        const pexelsUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(input.query)}&per_page=${imagesNeededFromPexels}`;
+        if (input.verbose) console.log(`[VERBOSE TOOL] Pexels API URL (attempt ${pexelsAttempts}): ${pexelsUrl}`);
+        const pexelsResponse = await fetch(pexelsUrl, {
+          headers: { Authorization: pexelsApiKey }
+        });
+
+        if (pexelsResponse.ok) {
+          pexelsCallSuccessfulInLoop = true; // Mark API call as successful for this iteration
+          const pexelsData = await pexelsResponse.json();
+          if (input.verbose) console.log(`[VERBOSE TOOL] Pexels API Raw Response (attempt ${pexelsAttempts}):`, JSON.stringify(pexelsData, null, 2));
+          
+          if (pexelsData.photos && pexelsData.photos.length > 0) {
+            let pexelsImagesAddedThisAttempt = 0;
+            pexelsData.photos.forEach((photo: any) => {
+              if (images.length >= MAX_IMAGES_TO_FETCH) return;
+              const pexelsImageCandidate = {
+                  imageUrl: photo.src?.medium,
+                  altText: photo.alt || `Image by ${photo.photographer} on Pexels`,
+                  photographerName: photo.photographer,
+                  photographerUrl: photo.photographer_url,
+                  sourcePlatform: "Pexels",
+                  sourceUrl: photo.url,
+              };
+              const parsedPexelsImage = ImageResultItemSchema.safeParse(pexelsImageCandidate);
+              if (parsedPexelsImage.success) {
+                  if (!images.find(img => img.imageUrl === parsedPexelsImage.data.imageUrl)) {
+                      images.push(parsedPexelsImage.data);
+                      pexelsImagesAddedThisAttempt++;
+                  }
+              } else {
+                   if (input.verbose) {
+                      console.warn(`[VERBOSE TOOL] Skipping Pexels image due to schema validation failure. imageUrl: ${photo.src?.medium}. Errors:`, parsedPexelsImage.error.flatten().fieldErrors, "Input data:", pexelsImageCandidate);
+                  }
+              }
+            });
+            if (input.verbose) console.log(`[VERBOSE TOOL] Fetched and added ${pexelsImagesAddedThisAttempt} valid image(s) from Pexels (attempt ${pexelsAttempts}).`);
+          } else {
+            if (input.verbose) console.log(`[VERBOSE TOOL] No images found on Pexels for "${input.query}" (attempt ${pexelsAttempts}).`);
+          }
+        } else { // !pexelsResponse.ok
+          if (pexelsAttempts >= MAX_API_ATTEMPTS) {
+            const pexelsError = await pexelsResponse.text();
+            console.error(`Pexels API request failed on final attempt ${pexelsAttempts}/${MAX_API_ATTEMPTS} for query "${input.query}" with status ${pexelsResponse.status}: ${pexelsError}`);
+            if (input.verbose) console.log(`[VERBOSE TOOL] Pexels API error response text (attempt ${pexelsAttempts}): ${pexelsError}`);
+          }
+          // If not the last attempt, loop will continue due to !pexelsCallSuccessfulInLoop
+        }
+      } catch (e) {
+        if (pexelsAttempts >= MAX_API_ATTEMPTS) {
+          console.error(`Error fetching from Pexels on final attempt ${pexelsAttempts}/${MAX_API_ATTEMPTS} for query "${input.query}":`, e);
+          if (input.verbose) console.log(`[VERBOSE TOOL] Exception during Pexels API call (attempt ${pexelsAttempts}):`, e);
+        }
+        // If not the last attempt, loop will continue due to !pexelsCallSuccessfulInLoop
+      }
+
+      if (!pexelsCallSuccessfulInLoop && pexelsAttempts < MAX_API_ATTEMPTS && (images.length < MAX_IMAGES_TO_FETCH)) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS)); 
+      }
     }
   } else if (images.length < MAX_IMAGES_TO_FETCH && (!pexelsApiKey || pexelsApiKey === "YOUR_PEXELS_API_KEY_HERE")) {
-     console.warn("PEXELS_API_KEY not set or is a placeholder. Skipping Pexels image search as fallback.");
-     if (input.verbose) console.log("[VERBOSE TOOL] Pexels API key not set, skipping.");
+     // Only log this warning if Pexels was intended (key was empty placeholder or just missing)
+     if (pexelsApiKey === "YOUR_PEXELS_API_KEY_HERE" || !pexelsApiKey) {
+        console.warn("PEXELS_API_KEY not set or is a placeholder. Skipping Pexels image search.");
+        if (input.verbose) console.log("[VERBOSE TOOL] Pexels API key not set/placeholder, skipping.");
+     }
   }
 
-  if (images.length === 0 && webResults.length > 0) {
-    if (input.verbose) console.log("[VERBOSE TOOL] No images fetched from Google or Pexels. Providing placeholder images.");
+  // --- Placeholder/Mock Images Logic ---
+  if (images.length === 0 && webResults.length > 0) { // Only use placeholders if web results exist but no images
+    if (input.verbose) console.log("[VERBOSE TOOL] No images fetched from Google or Pexels, but web results exist. Providing placeholder images.");
     const safeQuery = input.query || "image";
     images = Array.from({ length: Math.min(MAX_IMAGES_TO_FETCH, 6) }).map((_, i) => ({ 
-        imageUrl: `https://placehold.co/300x200.png`, // Removed text query param
+        imageUrl: `https://placehold.co/300x200.png`,
         altText: `Placeholder image for ${safeQuery} ${i+1}`,
         sourcePlatform: "Placeholder",
         sourceUrl: `https://placehold.co/` 
     }));
-  } else if (images.length === 0 && webResults.length === 0) {
+  } else if (images.length === 0 && webResults.length > 0 && webResults[0]?.title?.startsWith("Mock Web Result")) { 
+    // If web results are mock, and no real images, use mock images.
+    if (input.verbose) console.log("[VERBOSE TOOL] Web results are mock and no real images, using mock images from getMockSearchResults.");
+    images = getMockSearchResults(input.query).images || [];
+  } else if (images.length === 0 && webResults.length === 0) { // No web results at all, also use mock images
     console.warn("No web results and no real images, using mock images from getMockSearchResults.");
     if (input.verbose) console.log("[VERBOSE TOOL] No web results and no real images, using mock images.");
     images = getMockSearchResults(input.query).images || []; 
@@ -269,7 +322,7 @@ function getMockSearchResults(query: string): PerformWebSearchOutput {
       snippet: `This is mock web search result snippet ${i+1}. Configure your Search API (SEARCH_API_KEY and SEARCH_ENGINE_ID in environment variables) and/or DuckDuckScrape for real results.`,
     })),
     images: Array.from({ length: Math.min(MAX_IMAGES_TO_FETCH, 6) }).map((_, i) => ({ 
-        imageUrl: `https://placehold.co/300x200.png`, // Removed text query param
+        imageUrl: `https://placehold.co/300x200.png`,
         altText: `Mock Image ${i+1} for ${safeQuery}`,
         photographerName: `Mock Artist ${i+1}`,
         photographerUrl: `https://example.com/artist${i+1}`,
@@ -282,7 +335,7 @@ function getMockSearchResults(query: string): PerformWebSearchOutput {
 const performWebSearchTool = ai.defineTool(
   {
     name: 'performWebSearch',
-    description: 'Performs a web search for text results, primarily using Google Custom Search and falling back to DuckDuckScrape. Fetches related images, prioritizing images found within Google search results, then Pexels. Provides placeholders if no images are sourced.',
+    description: 'Performs a web search for text results, primarily using Google Custom Search (with retry) and falling back to DuckDuckScrape. Fetches related images, prioritizing images found within Google search results, then Pexels (with retry). Provides placeholders if no images are sourced.',
     inputSchema: PerformWebSearchInputSchema,
     outputSchema: PerformWebSearchOutputSchema,
   },
