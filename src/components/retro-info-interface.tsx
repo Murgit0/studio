@@ -11,9 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { processSearchQuery, type SearchActionResult, type ImageResultItem as ActionImageResultItem, type LocationData } from "@/app/actions";
-import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, MessageCircleOff, History, Newspaper } from "lucide-react";
+import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, MessageCircleOff, History, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import AuthStatus from '@/components/AuthStatus'; // Added import
+import AuthStatus from '@/components/AuthStatus';
 
 const formSchema = z.object({
   query: z.string().min(3, { message: "Query must be at least 3 characters." }),
@@ -215,6 +215,24 @@ export default function RetroInfoInterface() {
     form.setValue("query", event.target.value);
   };
 
+  const handleClearHistory = () => {
+    setRecentSearches([]);
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_RECENT_SEARCHES_KEY);
+      toast({
+        title: "Search History Cleared",
+        description: "Your recent searches have been removed.",
+      });
+    } catch (error) {
+      console.error("Failed to clear recent searches from localStorage:", error);
+      toast({
+        variant: "destructive",
+        title: "Error Clearing History",
+        description: "Could not remove search history from local storage.",
+      });
+    }
+  };
+
 
   const fetchedImages: ActionImageResultItem[] = searchResult?.searchResults?.images || [];
 
@@ -284,10 +302,21 @@ export default function RetroInfoInterface() {
 
       {recentSearches.length > 0 && (
         <Card className="border-secondary shadow-lg shadow-secondary/20">
-          <CardHeader>
-            <CardTitle className="text-xl flex items-center gap-2">
-              <History className="h-5 w-5 text-accent" /> Recent Searches
-            </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <History className="h-5 w-5 text-accent" />
+              <CardTitle className="text-xl">Recent Searches</CardTitle>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleClearHistory}
+              title="Clear search history"
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="h-5 w-5" />
+              <span className="sr-only">Clear search history</span>
+            </Button>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
             {recentSearches.map((searchTerm, index) => (
@@ -442,3 +471,5 @@ export default function RetroInfoInterface() {
     </div>
   );
 }
+
+    
