@@ -4,31 +4,31 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 let supabaseInstance: SupabaseClient | null = null;
 let isConfigured = true;
 
+// Check for URL placeholder or missing URL
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL === 'YOUR_SUPABASE_URL') {
-  console.error("ERROR: NEXT_PUBLIC_SUPABASE_URL is missing or set to the placeholder 'YOUR_SUPABASE_URL'. Please update your .env file. After saving the .env file, you MUST restart your Next.js development server. Ensure this is also set in your Netlify deployment.");
+  // UI in AuthStatus.tsx will guide the user. Console error for this specific case removed.
   isConfigured = false;
 }
 
+// Check for Anon Key placeholder or missing Key
 if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY') {
-  console.error("ERROR: NEXT_PUBLIC_SUPABASE_ANON_KEY is missing or set to the placeholder 'YOUR_SUPABASE_ANON_KEY'. Please update your .env file. After saving the .env file, you MUST restart your Next.js development server. Ensure this is also set in your Netlify deployment.");
+  // UI in AuthStatus.tsx will guide the user. Console error for this specific case removed.
   isConfigured = false;
 }
 
 if (isConfigured && process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-  // Only attempt to create client if both seem correctly configured (i.e., not placeholders and not missing)
+  // Only attempt to create client if all preliminary checks passed and vars are truthy.
   try {
     supabaseInstance = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
   } catch (e: any) {
-    // This catch is for errors during createClient itself, e.g., if the URL is syntactically invalid AFTER placeholders are replaced.
-    console.error("Failed to create Supabase client. This might be due to an invalid URL format or an issue with the provided credentials, even if they are not placeholders. Error: " + e.message);
+    // This catch is for errors during createClient itself, if URL is syntactically invalid AFTER placeholders might have been replaced,
+    // or other unexpected issues with createClient. This is a genuine error that should be logged.
+    console.error("Supabase client initialization failed unexpectedly, even after basic environment variable checks. Error: " + e.message);
     isConfigured = false; // Mark as unconfigured if createClient itself fails
   }
 } else {
-    // This else block ensures supabaseInstance remains null if isConfigured is false due to placeholder checks.
-    if (!isConfigured) { 
-        // Log this general message only if specific placeholder errors were already logged by the checks above.
-        console.warn("Supabase client not created due to configuration issues (see previous console errors for details). Authentication will not function.");
-    }
+    // This block is reached if isConfigured became false due to the placeholder/missing checks above.
+    // supabaseInstance remains null. AuthStatus.tsx will handle the UI notification.
 }
 
 export const supabase = supabaseInstance;
