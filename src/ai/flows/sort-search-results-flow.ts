@@ -50,18 +50,18 @@ export type SortSearchResultsOutput = z.infer<typeof SortSearchResultsOutputSche
 
 export async function sortSearchResults(input: SortSearchResultsInput): Promise<SortSearchResultsOutput> {
   if (input.verbose) {
-    console.log(`[VERBOSE FLOW - sortSearchResults] Input:`, JSON.stringify(input, null, 2));
+    console.log(`[VERBOSE FLOW WRAPPER - sortSearchResults] Input:`, JSON.stringify(input, null, 2));
   }
 
   if (input.webResults.length <= 1) {
     if (input.verbose) {
-        console.log(`[VERBOSE FLOW - sortSearchResults] Skipping sort for <= 1 result.`);
+        console.log(`[VERBOSE FLOW WRAPPER - sortSearchResults] Skipping sort for <= 1 result.`);
     }
     return { sortedWebResults: input.webResults };
   }
   const result = await sortSearchResultsFlow(input);
   if (input.verbose) {
-    console.log(`[VERBOSE FLOW - sortSearchResults] Output:`, JSON.stringify(result, null, 2));
+    console.log(`[VERBOSE FLOW WRAPPER - sortSearchResults] Output:`, JSON.stringify(result, null, 2));
   }
   return result;
 }
@@ -116,6 +116,9 @@ Return ONLY the JSON array of sorted results.
 `,
 });
 
+const MAX_AI_ATTEMPTS = 2; // 1 initial + 1 retry
+const AI_RETRY_DELAY_MS = 500;
+
 const sortSearchResultsFlow = ai.defineFlow(
   {
     name: 'sortSearchResultsFlow',
@@ -128,38 +131,65 @@ const sortSearchResultsFlow = ai.defineFlow(
         webResults: input.webResults,
         location: input.location,
         deviceInfo: input.deviceInfo,
-        recentSearches: input.recentSearches, // Pass recent searches to the prompt
+        recentSearches: input.recentSearches,
     };
-    if (input.verbose) {
-        console.log(`[VERBOSE FLOW - sortSearchResultsFlow] Calling prompt with input:`, JSON.stringify(promptInput, null, 2));
+    
+    let finalOutput: SortSearchResultsOutputSchemaInternal | null = null;
+    let lastError: any = null;
+
+    for (let attempt = 1; attempt <= MAX_AI_ATTEMPTS; attempt++) {
+      try {
+        if (input.verbose) {
+          if (attempt > 1) {
+            console.log(`[VERBOSE FLOW - sortSearchResultsFlow] Retrying prompt call (attempt ${attempt}/${MAX_AI_ATTEMPTS}) for query: "${input.query}"`);
+          }
+          // Log prompt call for each attempt if verbose
+           console.log(`[VERBOSE FLOW - sortSearchResultsFlow] Calling prompt (attempt ${attempt}) with input:`, JSON.stringify(promptInput, null, 2));
+        }
+        
+        const { output: currentPromptOutput } = await prompt(promptInput);
+        
+        if (input.verbose) {
+            console.log(`[VERBOSE FLOW - sortSearchResultsFlow] Prompt output (attempt ${attempt}):`, JSON.stringify(currentPromptOutput, null, 2));
+        }
+
+        // Validate the output integrity
+        if (!currentPromptOutput) {
+            if (input.verbose) console.log(`[VERBOSE FLOW - sortSearchResultsFlow] AI model output was null on attempt ${attempt}.`);
+            if (attempt < MAX_AI_ATTEMPTS) {  continue; } // Retry if not last attempt
+            // If last attempt and still null, it will fall through to the outer !finalOutput check
+        } else if (!currentPromptOutput.sortedWebResults || currentPromptOutput.sortedWebResults.length !== input.webResults.length) {
+            if (input.verbose) console.log(`[VERBOSE FLOW - sortSearchResultsFlow] AI model output item count mismatch or missing sortedWebResults on attempt ${attempt}. Output:`, currentPromptOutput);
+            if (attempt < MAX_AI_ATTEMPTS) { continue; } // Retry
+        } else {
+            const originalLinks = new Set(input.webResults.map(r => r.link));
+            const outputLinks = new Set(currentPromptOutput.sortedWebResults.map(r => r.link));
+            if (originalLinks.size !== outputLinks.size || !Array.from(originalLinks).every(link => outputLinks.has(link))) {
+                if (input.verbose) console.log(`[VERBOSE FLOW - sortSearchResultsFlow] AI model modified or lost items during sorting on attempt ${attempt}.`);
+                if (attempt < MAX_AI_ATTEMPTS) { continue; } // Retry
+            } else {
+                finalOutput = currentPromptOutput; // Valid output
+                break; // Success, exit retry loop
+            }
+        }
+      } catch (error) {
+        lastError = error;
+        if (input.verbose) {
+          console.error(`[VERBOSE FLOW - sortSearchResultsFlow] Error during prompt call (attempt ${attempt}/${MAX_AI_ATTEMPTS}):`, error);
+        }
+      }
+
+      if (attempt < MAX_AI_ATTEMPTS) {
+        await new Promise(resolve => setTimeout(resolve, AI_RETRY_DELAY_MS));
+      }
     }
     
-    const {output} = await prompt(promptInput);
-    
-    if (input.verbose) {
-        console.log(`[VERBOSE FLOW - sortSearchResultsFlow] Prompt output:`, JSON.stringify(output, null, 2));
+    if (!finalOutput) {
+        console.warn(`SortSearchResultsFlow: AI model did not return valid/expected output after ${MAX_AI_ATTEMPTS} attempts for query "${input.query}". Returning original order. Last error (if any):`, lastError);
+        if (input.verbose && !lastError) console.log('[VERBOSE FLOW - sortSearchResultsFlow] AI model output processing failed due to invalid structure/content after all attempts. Returning original order.');
+        return { sortedWebResults: input.webResults };
     }
 
-    if (!output) {
-        console.warn('SortSearchResultsFlow: AI model did not return expected output. Returning original order.');
-        if (input.verbose) console.log('[VERBOSE FLOW - sortSearchResultsFlow] AI model output was null. Returning original order.');
-        return { sortedWebResults: input.webResults };
-    }
-    
-    if (output.sortedWebResults.length !== input.webResults.length) {
-        console.warn('SortSearchResultsFlow: AI model returned a different number of items. Returning original order.');
-        if (input.verbose) console.log('[VERBOSE FLOW - sortSearchResultsFlow] AI model output item count mismatch. Returning original order.');
-        return { sortedWebResults: input.webResults };
-    }
-    
-    const originalLinks = new Set(input.webResults.map(r => r.link));
-    const outputLinks = new Set(output.sortedWebResults.map(r => r.link));
-    if (originalLinks.size !== outputLinks.size || !Array.from(originalLinks).every(link => outputLinks.has(link))) {
-        console.warn('SortSearchResultsFlow: AI model modified or lost items during sorting. Returning original order.');
-         if (input.verbose) console.log('[VERBOSE FLOW - sortSearchResultsFlow] AI model modified/lost items. Returning original order.');
-        return { sortedWebResults: input.webResults };
-    }
-
-    return output;
+    return finalOutput;
   }
 );

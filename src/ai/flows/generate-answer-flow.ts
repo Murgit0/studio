@@ -29,11 +29,11 @@ export type GenerateAnswerOutput = z.infer<typeof GenerateAnswerOutputSchema>;
 
 export async function generateAnswer(input: GenerateAnswerInput): Promise<GenerateAnswerOutput> {
   if (input.verbose) {
-    console.log(`[VERBOSE FLOW - generateAnswer] Input:`, JSON.stringify(input, null, 2));
+    console.log(`[VERBOSE FLOW WRAPPER - generateAnswer] Input:`, JSON.stringify(input, null, 2));
   }
   const result = await generateAnswerFlow(input);
   if (input.verbose) {
-    console.log(`[VERBOSE FLOW - generateAnswer] Output:`, JSON.stringify(result, null, 2));
+    console.log(`[VERBOSE FLOW WRAPPER - generateAnswer] Output:`, JSON.stringify(result, null, 2));
   }
   return result;
 }
@@ -59,6 +59,9 @@ User Query: {{{query}}}
 `,
 });
 
+const MAX_AI_ATTEMPTS = 2; // 1 initial + 1 retry
+const AI_RETRY_DELAY_MS = 500;
+
 const generateAnswerFlow = ai.defineFlow(
   {
     name: 'generateAnswerFlow',
@@ -67,13 +70,53 @@ const generateAnswerFlow = ai.defineFlow(
   },
   async (input) => {
     const promptInput = { query: input.query, recentSearches: input.recentSearches };
-    if (input.verbose) {
-        console.log(`[VERBOSE FLOW - generateAnswerFlow] Calling prompt with input (excluding verbose):`, JSON.stringify(promptInput, null, 2));
+    let resultOutput: GenerateAnswerOutput | null = null;
+    let lastError: any = null;
+
+    for (let attempt = 1; attempt <= MAX_AI_ATTEMPTS; attempt++) {
+      try {
+        if (input.verbose) {
+          if (attempt > 1) {
+            console.log(`[VERBOSE FLOW - generateAnswerFlow] Retrying prompt call (attempt ${attempt}/${MAX_AI_ATTEMPTS}) for query: "${input.query}"`);
+          }
+          // Log prompt call for each attempt if verbose
+          console.log(`[VERBOSE FLOW - generateAnswerFlow] Calling prompt (attempt ${attempt}) with input:`, JSON.stringify(promptInput, null, 2));
+        }
+        
+        const { output } = await prompt(promptInput);
+        
+        if (input.verbose) {
+            console.log(`[VERBOSE FLOW - generateAnswerFlow] Prompt output (attempt ${attempt}):`, JSON.stringify(output, null, 2));
+        }
+        
+        resultOutput = output; // output can be null if model returns nothing structured or an empty object for the schema
+        
+        // Check if the output is satisfactory (e.g., not null and has the expected 'answer' field)
+        if (resultOutput && typeof resultOutput.answer === 'string') {
+            break; // Successful, exit retry loop
+        } else if (attempt < MAX_AI_ATTEMPTS) {
+             if (input.verbose) {
+                console.log(`[VERBOSE FLOW - generateAnswerFlow] Prompt returned null or invalid output on attempt ${attempt}, retrying.`);
+             }
+        }
+
+      } catch (error) {
+        lastError = error;
+        if (input.verbose) {
+          console.error(`[VERBOSE FLOW - generateAnswerFlow] Error during prompt call (attempt ${attempt}/${MAX_AI_ATTEMPTS}):`, error);
+        }
+      }
+
+      if (attempt < MAX_AI_ATTEMPTS) {
+        await new Promise(resolve => setTimeout(resolve, AI_RETRY_DELAY_MS));
+      }
     }
-    const {output} = await prompt(promptInput); // Pass only relevant fields to prompt
-    if (input.verbose) {
-        console.log(`[VERBOSE FLOW - generateAnswerFlow] Prompt output:`, JSON.stringify(output, null, 2));
+
+    if (!resultOutput || typeof resultOutput.answer !== 'string') {
+        console.warn(`generateAnswerFlow: AI model did not return expected output after ${MAX_AI_ATTEMPTS} attempts for query "${input.query}". Last error (if any):`, lastError, "Returning empty answer.");
+        return { answer: "" }; 
     }
-    return output!;
+    
+    return resultOutput;
   }
 );
