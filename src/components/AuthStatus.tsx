@@ -1,11 +1,13 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase, supabaseConfigured } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
-import { LogIn, LogOut, Github, UserCircle, AlertTriangle } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { LogIn, LogOut, UserCircle, AlertTriangle, Mail, KeyRound, UserPlus, Loader2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +16,9 @@ export default function AuthStatus() {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -22,7 +27,7 @@ export default function AuthStatus() {
       return;
     }
 
-    setLoading(true); // Set loading true only if configured and attempting to get session
+    setLoading(true);
     const getSession = async () => {
       const { data: { session: currentSession } } = await supabase.auth.getSession();
       setSession(currentSession);
@@ -36,11 +41,17 @@ export default function AuthStatus() {
       (_event, newSession) => {
         setSession(newSession);
         setUser(newSession?.user ?? null);
-        setLoading(false); // Update loading state on auth change
+        setLoading(false);
+        setAuthLoading(false); // Reset auth specific loading
         if (_event === 'SIGNED_IN') {
           toast({ title: "Login Successful", description: `Welcome back, ${newSession?.user?.email || 'user'}!` });
+          setEmail(''); // Clear form
+          setPassword('');
         } else if (_event === 'SIGNED_OUT') {
           toast({ title: "Logout Successful", description: "You have been logged out." });
+        } else if (_event === 'USER_UPDATED') {
+          // Could be email confirmation
+           toast({ title: "Account Updated", description: `Your account details have been updated.` });
         }
       }
     );
@@ -48,7 +59,7 @@ export default function AuthStatus() {
     return () => {
       authListener?.unsubscribe();
     };
-  }, [supabase, toast, supabaseConfigured]); // supabaseConfigured ensures effect re-evaluates if it could change (it's module-level, so once)
+  }, [toast]); // supabase and supabaseConfigured are constant after initial load
 
   if (!supabaseConfigured) {
     return (
@@ -71,30 +82,40 @@ export default function AuthStatus() {
     );
   }
 
-  const handleLogin = async () => {
+  const handleSignUp = async (e: FormEvent) => {
+    e.preventDefault();
     if (!supabase) return;
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'github',
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
+    setAuthLoading(true);
+    const { error } = await supabase.auth.signUp({ email, password });
     if (error) {
-      toast({ variant: "destructive", title: "Login Error", description: error.message });
-      setLoading(false);
+      toast({ variant: "destructive", title: "Sign Up Error", description: error.message });
+    } else {
+      toast({ title: "Sign Up Successful", description: "Please check your email to confirm your registration." });
+      // Email and password fields are cleared by onAuthStateChange if successful, or kept for correction
     }
+    setAuthLoading(false);
+  };
+
+  const handleSignIn = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!supabase) return;
+    setAuthLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      toast({ variant: "destructive", title: "Sign In Error", description: error.message });
+    }
+    // Success is handled by onAuthStateChange
+    setAuthLoading(false);
   };
 
   const handleLogout = async () => {
     if (!supabase) return;
-    setLoading(true);
+    setAuthLoading(true);
     const { error } = await supabase.auth.signOut();
     if (error) {
       toast({ variant: "destructive", title: "Logout Error", description: error.message });
     }
-    // Auth listener will update state
-    setLoading(false);
+    // Auth listener will update state and setAuthLoading(false)
   };
 
   if (loading) {
@@ -113,16 +134,62 @@ export default function AuthStatus() {
         <span className="text-sm text-muted-foreground hidden sm:inline">
           {user.email}
         </span>
-        <Button variant="ghost" size="sm" onClick={handleLogout} disabled={loading} className="text-primary hover:text-accent">
-          <LogOut className="mr-1 h-4 w-4" /> Logout
+        <Button variant="ghost" size="sm" onClick={handleLogout} disabled={authLoading} className="text-primary hover:text-accent">
+          {authLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="mr-1 h-4 w-4" />} Logout
         </Button>
       </div>
     );
   }
 
   return (
-    <Button variant="outline" size="sm" onClick={handleLogin} disabled={loading} className="border-accent text-accent hover:bg-accent/10">
-      <Github className="mr-2 h-4 w-4" /> Login with GitHub
-    </Button>
+    <Card className="w-full max-w-sm border-primary shadow-primary/10">
+      <CardHeader>
+        <CardTitle className="text-xl">Authenticate</CardTitle>
+        <CardDescription>Sign in or create an account to continue.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <form onSubmit={handleSignIn} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input 
+                id="email" 
+                type="email" 
+                placeholder="you@example.com" 
+                value={email}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+                required 
+                className="pl-10"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <div className="relative">
+              <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input 
+                id="password" 
+                type="password" 
+                placeholder="••••••••" 
+                value={password}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+                required 
+                className="pl-10"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button type="submit" disabled={authLoading} className="w-full bg-primary hover:bg-primary/90 flex-1">
+              {authLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />} Sign In
+            </Button>
+            <Button type="button" variant="outline" onClick={handleSignUp} disabled={authLoading} className="w-full border-accent text-accent hover:bg-accent/10 flex-1">
+              {authLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />} Sign Up
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
+
