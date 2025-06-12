@@ -60,7 +60,7 @@ User Query: {{{query}}}
 });
 
 const MAX_AI_ATTEMPTS = 2; // 1 initial + 1 retry
-const AI_RETRY_DELAY_MS = 500;
+const AI_RETRY_DELAY_MS = 500; // Optional delay before retry
 
 const generateAnswerFlow = ai.defineFlow(
   {
@@ -79,7 +79,6 @@ const generateAnswerFlow = ai.defineFlow(
           if (attempt > 1) {
             console.log(`[VERBOSE FLOW - generateAnswerFlow] Retrying prompt call (attempt ${attempt}/${MAX_AI_ATTEMPTS}) for query: "${input.query}"`);
           }
-          // Log prompt call for each attempt if verbose
           console.log(`[VERBOSE FLOW - generateAnswerFlow] Calling prompt (attempt ${attempt}) with input:`, JSON.stringify(promptInput, null, 2));
         }
         
@@ -89,14 +88,13 @@ const generateAnswerFlow = ai.defineFlow(
             console.log(`[VERBOSE FLOW - generateAnswerFlow] Prompt output (attempt ${attempt}):`, JSON.stringify(output, null, 2));
         }
         
-        resultOutput = output; // output can be null if model returns nothing structured or an empty object for the schema
+        resultOutput = output; 
         
-        // Check if the output is satisfactory (e.g., not null and has the expected 'answer' field)
-        if (resultOutput && typeof resultOutput.answer === 'string') {
-            break; // Successful, exit retry loop
+        if (resultOutput && typeof resultOutput.answer === 'string' && resultOutput.answer.trim() !== "") {
+            break; 
         } else if (attempt < MAX_AI_ATTEMPTS) {
              if (input.verbose) {
-                console.log(`[VERBOSE FLOW - generateAnswerFlow] Prompt returned null or invalid output on attempt ${attempt}, retrying.`);
+                console.log(`[VERBOSE FLOW - generateAnswerFlow] Prompt returned null, empty, or invalid output on attempt ${attempt}, retrying.`);
              }
         }
 
@@ -112,7 +110,7 @@ const generateAnswerFlow = ai.defineFlow(
       }
     }
 
-    if (!resultOutput || typeof resultOutput.answer !== 'string') {
+    if (!resultOutput || typeof resultOutput.answer !== 'string' || resultOutput.answer.trim() === "") {
         console.warn(`generateAnswerFlow: AI model did not return expected output after ${MAX_AI_ATTEMPTS} attempts for query "${input.query}". Last error (if any):`, lastError, "Returning empty answer.");
         return { answer: "" }; 
     }

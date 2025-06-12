@@ -117,7 +117,7 @@ Return ONLY the JSON array of sorted results.
 });
 
 const MAX_AI_ATTEMPTS = 2; // 1 initial + 1 retry
-const AI_RETRY_DELAY_MS = 500;
+const AI_RETRY_DELAY_MS = 500; // Optional delay before retry
 
 const sortSearchResultsFlow = ai.defineFlow(
   {
@@ -143,7 +143,6 @@ const sortSearchResultsFlow = ai.defineFlow(
           if (attempt > 1) {
             console.log(`[VERBOSE FLOW - sortSearchResultsFlow] Retrying prompt call (attempt ${attempt}/${MAX_AI_ATTEMPTS}) for query: "${input.query}"`);
           }
-          // Log prompt call for each attempt if verbose
            console.log(`[VERBOSE FLOW - sortSearchResultsFlow] Calling prompt (attempt ${attempt}) with input:`, JSON.stringify(promptInput, null, 2));
         }
         
@@ -153,23 +152,30 @@ const sortSearchResultsFlow = ai.defineFlow(
             console.log(`[VERBOSE FLOW - sortSearchResultsFlow] Prompt output (attempt ${attempt}):`, JSON.stringify(currentPromptOutput, null, 2));
         }
 
-        // Validate the output integrity
-        if (!currentPromptOutput) {
-            if (input.verbose) console.log(`[VERBOSE FLOW - sortSearchResultsFlow] AI model output was null on attempt ${attempt}.`);
-            if (attempt < MAX_AI_ATTEMPTS) {  continue; } // Retry if not last attempt
-            // If last attempt and still null, it will fall through to the outer !finalOutput check
-        } else if (!currentPromptOutput.sortedWebResults || currentPromptOutput.sortedWebResults.length !== input.webResults.length) {
-            if (input.verbose) console.log(`[VERBOSE FLOW - sortSearchResultsFlow] AI model output item count mismatch or missing sortedWebResults on attempt ${attempt}. Output:`, currentPromptOutput);
-            if (attempt < MAX_AI_ATTEMPTS) { continue; } // Retry
+        if (!currentPromptOutput || !currentPromptOutput.sortedWebResults) {
+            if (input.verbose) console.log(`[VERBOSE FLOW - sortSearchResultsFlow] AI model output was null or missing sortedWebResults on attempt ${attempt}.`);
+            if (attempt < MAX_AI_ATTEMPTS) {  
+              lastError = new Error("AI output null or missing sortedWebResults field.");
+              continue; 
+            } 
+        } else if (currentPromptOutput.sortedWebResults.length !== input.webResults.length) {
+            if (input.verbose) console.log(`[VERBOSE FLOW - sortSearchResultsFlow] AI model output item count mismatch on attempt ${attempt}. Expected ${input.webResults.length}, got ${currentPromptOutput.sortedWebResults.length}. Output:`, currentPromptOutput);
+            if (attempt < MAX_AI_ATTEMPTS) { 
+              lastError = new Error("AI output item count mismatch.");
+              continue; 
+            }
         } else {
             const originalLinks = new Set(input.webResults.map(r => r.link));
             const outputLinks = new Set(currentPromptOutput.sortedWebResults.map(r => r.link));
             if (originalLinks.size !== outputLinks.size || !Array.from(originalLinks).every(link => outputLinks.has(link))) {
                 if (input.verbose) console.log(`[VERBOSE FLOW - sortSearchResultsFlow] AI model modified or lost items during sorting on attempt ${attempt}.`);
-                if (attempt < MAX_AI_ATTEMPTS) { continue; } // Retry
+                if (attempt < MAX_AI_ATTEMPTS) { 
+                  lastError = new Error("AI modified or lost items during sorting.");
+                  continue; 
+                }
             } else {
-                finalOutput = currentPromptOutput; // Valid output
-                break; // Success, exit retry loop
+                finalOutput = currentPromptOutput; 
+                break; 
             }
         }
       } catch (error) {
