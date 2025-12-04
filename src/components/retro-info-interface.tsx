@@ -15,6 +15,8 @@ import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIco
 import { useToast } from "@/hooks/use-toast";
 import AuthStatus from '@/components/AuthStatus';
 import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger, PopoverAnchor } from "@/components/ui/popover";
+
 
 const formSchema = z.object({
   query: z.string().min(3, { message: "Query must be at least 3 characters." }),
@@ -49,6 +51,7 @@ export default function RetroInfoInterface() {
   const [locationData, setLocationData] = useState<LocationData>(DEFAULT_LOCATION_INDIA); 
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 
   const hasSearched = isLoading || searchResult !== null;
   
@@ -145,6 +148,7 @@ export default function RetroInfoInterface() {
   async function onSubmit(values: FormData) {
     setIsLoading(true);
     setSearchResult(null);
+    setIsPopoverOpen(false);
     const queryToProcess = values.query;
 
     const updatedRecentSearches = [queryToProcess, ...recentSearches.filter(rs => rs !== queryToProcess)].slice(0, MAX_RECENT_SEARCHES);
@@ -212,6 +216,7 @@ export default function RetroInfoInterface() {
 
   const handleRecentSearchClick = (searchTerm: string) => {
     form.setValue("query", searchTerm);
+    setIsPopoverOpen(false);
     form.handleSubmit(onSubmit)();
   };
   
@@ -240,6 +245,24 @@ export default function RetroInfoInterface() {
 
   const fetchedImages: ActionImageResultItem[] = searchResult?.searchResults?.images || [];
 
+  const renderRecentSearchesList = (isPopover = false) => (
+    <div className={cn("flex flex-col gap-2", isPopover && "p-2")}>
+      {recentSearches.map((searchTerm, index) => (
+        <Button
+          key={index}
+          variant="ghost"
+          size="sm"
+          onClick={() => handleRecentSearchClick(searchTerm)}
+          className="text-sm justify-start hover:bg-accent/10"
+        >
+          <History className="mr-2 h-4 w-4" />
+          {searchTerm}
+        </Button>
+      ))}
+    </div>
+  );
+
+
   return (
     <div className={cn("w-full transition-all duration-500", hasSearched ? "pt-0" : "flex items-center justify-center min-h-[calc(100vh-8rem)]")}>
       <div className="w-full max-w-7xl mx-auto space-y-8">
@@ -259,37 +282,47 @@ export default function RetroInfoInterface() {
             </h1>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="flex-grow flex items-center gap-2">
-                <FormField
-                  control={form.control}
-                  name="query"
-                  render={({ field }) => (
-                    <FormItem className="flex-grow">
-                      <FormControl>
-                        <div className="relative">
-                           <Input
-                            id="collapsed-query"
-                            placeholder="Search again..."
-                            {...field}
-                            onChange={handleQueryInputChange}
-                            className="text-sm pr-10"
-                          />
-                          {field.value && (
-                            <Button 
-                              type="button" 
-                              variant="ghost" 
-                              size="icon" 
-                              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground"
-                              onClick={() => form.setValue('query', '')}
-                            >
-                              <X className="h-4 w-4"/>
-                            </Button>
-                          )}
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+                <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+                  <PopoverAnchor asChild>
+                    <FormField
+                      control={form.control}
+                      name="query"
+                      render={({ field }) => (
+                        <FormItem className="flex-grow">
+                           <FormControl>
+                            <div className="relative">
+                               <Input
+                                id="collapsed-query"
+                                placeholder="Search again..."
+                                {...field}
+                                onChange={handleQueryInputChange}
+                                className="text-sm pr-10"
+                                onFocus={() => setIsPopoverOpen(true)}
+                              />
+                              {field.value && (
+                                <Button 
+                                  type="button" 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground"
+                                  onClick={() => {form.setValue('query', ''); setIsPopoverOpen(true);}}
+                                >
+                                  <X className="h-4 w-4"/>
+                                </Button>
+                              )}
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </PopoverAnchor>
+                  {recentSearches.length > 0 && (
+                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+                      {renderRecentSearchesList(true)}
+                    </PopoverContent>
                   )}
-                />
+                </Popover>
                 <Button 
                   type="submit" 
                   disabled={isLoading} 
@@ -327,25 +360,37 @@ export default function RetroInfoInterface() {
             <CardContent className="pt-6">
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                  <FormField
-                    control={form.control}
-                    name="query"
-                    render={({ field }) => ( 
-                      <FormItem>
-                        <FormLabel htmlFor="query" className="text-lg">Search Query</FormLabel>
-                        <FormControl>
-                          <Input
-                            id="query"
-                            placeholder="e.g., 'latest advancements in AI'"
-                            {...field} 
-                            onChange={handleQueryInputChange} 
-                            className="text-sm"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
+                 <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+                  <PopoverAnchor asChild>
+                    <FormField
+                      control={form.control}
+                      name="query"
+                      render={({ field }) => ( 
+                        <FormItem>
+                          <FormLabel htmlFor="query" className="text-lg">Search Query</FormLabel>
+                          <FormControl>
+                            <Input
+                              id="query"
+                              placeholder="e.g., 'latest advancements in AI'"
+                              {...field} 
+                              onChange={handleQueryInputChange} 
+                              className="text-lg h-12"
+                              autoComplete="off"
+                              onFocus={() => setIsPopoverOpen(true)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                   </PopoverAnchor>
+                    {recentSearches.length > 0 && (
+                      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+                        {renderRecentSearchesList(true)}
+                      </PopoverContent>
                     )}
-                  />
+                  </Popover>
+
                   <Button 
                     type="submit" 
                     disabled={isLoading} 
@@ -390,7 +435,7 @@ export default function RetroInfoInterface() {
                 </Button>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
-                {recentSearches.map((searchTerm, index) => (
+                 {recentSearches.map((searchTerm, index) => (
                   <Button
                     key={index}
                     variant="outline"
@@ -549,3 +594,5 @@ export default function RetroInfoInterface() {
     </div>
   );
 }
+
+    
