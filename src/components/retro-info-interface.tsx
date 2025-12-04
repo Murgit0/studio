@@ -11,9 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { processSearchQuery, type SearchActionResult, type ImageResultItem as ActionImageResultItem, type LocationData } from "@/app/actions";
-import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, MessageCircleOff, History, Trash2 } from "lucide-react";
+import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, MessageCircleOff, History, Trash2, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AuthStatus from '@/components/AuthStatus';
+import { cn } from "@/lib/utils";
 
 const formSchema = z.object({
   query: z.string().min(3, { message: "Query must be at least 3 characters." }),
@@ -48,6 +49,8 @@ export default function RetroInfoInterface() {
   const [locationData, setLocationData] = useState<LocationData>(DEFAULT_LOCATION_INDIA); 
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+
+  const hasSearched = isLoading || searchResult !== null;
   
   useEffect(() => {
     const userAgent = navigator.userAgent;
@@ -209,6 +212,7 @@ export default function RetroInfoInterface() {
 
   const handleRecentSearchClick = (searchTerm: string) => {
     form.setValue("query", searchTerm);
+    form.handleSubmit(onSubmit)();
   };
   
   const handleQueryInputChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -237,239 +241,311 @@ export default function RetroInfoInterface() {
   const fetchedImages: ActionImageResultItem[] = searchResult?.searchResults?.images || [];
 
   return (
-    <div className="container mx-auto p-4 md:p-8 space-y-8">
-      <header className="flex justify-between items-center text-center mb-4">
-        <div className="flex-1"></div> {/* Spacer */}
-        <h1
-          onClick={handleTitleClick}
-          className="text-5xl font-bold text-primary cursor-pointer select-none flex-grow text-center"
-          title="Try clicking me twice!"
-        >
-          Xpoxial Search
-        </h1>
-        <div className="flex-1 flex justify-end">
-           <AuthStatus />
-        </div>
-      </header>
-
-      <Card className="border-primary shadow-lg shadow-primary/20">
-        <CardContent className="pt-6">
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="query"
-                render={({ field }) => ( 
-                  <FormItem>
-                    <FormLabel htmlFor="query" className="text-lg">Search Query</FormLabel>
-                    <FormControl>
-                      <Input
-                        id="query"
-                        placeholder="e.g., 'latest advancements in AI'"
-                        {...field} 
-                        onChange={handleQueryInputChange} 
-                        className="text-sm"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button 
-                type="submit" 
-                disabled={isLoading} 
-                className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg py-6"
-                onContextMenu={handleSearchButtonContextMenu}
-                title="Left-click to search. Right-click to toggle verbose AI logs."
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Searching...
-                  </>
-                ) : (
-                  <>
-                    <Search className="mr-2 h-5 w-5" />
-                    Search
-                  </>
-                )}
-                {isVerboseLoggingEnabled && <MessageCircleMore className="ml-2 h-4 w-4 text-accent-foreground/70" />}
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
-
-      {recentSearches.length > 0 && (
-        <Card className="border-secondary shadow-lg shadow-secondary/20">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div className="flex items-center gap-2">
-              <History className="h-5 w-5 text-accent" />
-              <CardTitle className="text-xl">Recent Searches</CardTitle>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleClearHistory}
-              title="Clear search history"
-              className="text-muted-foreground hover:text-destructive"
+    <div className={cn("w-full transition-all duration-500", hasSearched ? "pt-0" : "flex items-center justify-center min-h-[calc(100vh-8rem)]")}>
+      <div className="w-full max-w-7xl mx-auto space-y-8">
+        
+        {/* === Collapsed Header / Search Bar === */}
+        <div className={cn(
+          "sticky top-0 z-50 w-full bg-background/80 backdrop-blur-sm transition-all duration-300",
+          hasSearched ? "opacity-100 py-3" : "opacity-0 -translate-y-full h-0"
+        )}>
+          <div className="container mx-auto flex items-center gap-4">
+            <h1
+              onClick={handleTitleClick}
+              className="text-2xl font-bold text-primary cursor-pointer select-none"
+              title="Try clicking me twice!"
             >
-              <Trash2 className="h-5 w-5" />
-              <span className="sr-only">Clear search history</span>
-            </Button>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            {recentSearches.map((searchTerm, index) => (
-              <Button
-                key={index}
-                variant="outline"
-                size="sm"
-                onClick={() => handleRecentSearchClick(searchTerm)}
-                className="text-sm hover:bg-accent/10"
-              >
-                {searchTerm}
-              </Button>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {isLoading && (
-        <div className="flex justify-center items-center p-10">
-          <Loader2 className="h-12 w-12 text-primary animate-spin" />
-          <p className="ml-4 text-xl text-muted-foreground">Searching the digital cosmos...</p>
+              Xpoxial Search
+            </h1>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="flex-grow flex items-center gap-2">
+                <FormField
+                  control={form.control}
+                  name="query"
+                  render={({ field }) => (
+                    <FormItem className="flex-grow">
+                      <FormControl>
+                        <div className="relative">
+                           <Input
+                            id="collapsed-query"
+                            placeholder="Search again..."
+                            {...field}
+                            onChange={handleQueryInputChange}
+                            className="text-sm pr-10"
+                          />
+                          {field.value && (
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              size="icon" 
+                              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground"
+                              onClick={() => form.setValue('query', '')}
+                            >
+                              <X className="h-4 w-4"/>
+                            </Button>
+                          )}
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button 
+                  type="submit" 
+                  disabled={isLoading} 
+                  className="bg-accent text-accent-foreground hover:bg-accent/90"
+                  size="icon"
+                  onContextMenu={handleSearchButtonContextMenu}
+                  title="Left-click to search. Right-click to toggle verbose AI logs."
+                >
+                  {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
+                  {isVerboseLoggingEnabled && <MessageCircleMore className="absolute top-0 right-0 h-3 w-3 text-background/80" />}
+                </Button>
+              </form>
+            </Form>
+            <AuthStatus />
+          </div>
         </div>
-      )}
 
-      {searchResult && searchResult.error && !isLoading && (
-        <Card className="border-destructive shadow-lg shadow-destructive/20">
-          <CardHeader>
-            <CardTitle className="text-destructive flex items-center gap-2">
-              <AlertTriangle className="h-6 w-6" /> Error
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-destructive-foreground whitespace-pre-wrap">{searchResult.error}</p>
-          </CardContent>
-        </Card>
-      )}
+        {/* === Initial Fullscreen Search View === */}
+        <div className={cn("transition-opacity duration-500", hasSearched ? "opacity-0 h-0 overflow-hidden" : "opacity-100")}>
+          <header className="flex justify-between items-center text-center mb-4">
+            <div className="flex-1"></div> {/* Spacer */}
+            <h1
+              onClick={handleTitleClick}
+              className="text-5xl font-bold text-primary cursor-pointer select-none flex-grow text-center"
+              title="Try clicking me twice!"
+            >
+              Xpoxial Search
+            </h1>
+            <div className="flex-1 flex justify-end">
+              <AuthStatus />
+            </div>
+          </header>
 
-      {searchResult && !searchResult.error && !isLoading && (
-        <>
-          {(!searchResult.answer?.answer &&
-           (!searchResult.searchResults?.webResults || searchResult.searchResults.webResults.length === 0) &&
-           fetchedImages.length === 0
-          ) ? (
-            <Card className="border-primary shadow-lg shadow-primary/20">
-              <CardHeader>
-                <CardTitle className="text-2xl flex items-center gap-2"><Search className="h-6 w-6 text-accent"/> No Specific Results</CardTitle>
+          <Card className="border-primary shadow-lg shadow-primary/20">
+            <CardContent className="pt-6">
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  <FormField
+                    control={form.control}
+                    name="query"
+                    render={({ field }) => ( 
+                      <FormItem>
+                        <FormLabel htmlFor="query" className="text-lg">Search Query</FormLabel>
+                        <FormControl>
+                          <Input
+                            id="query"
+                            placeholder="e.g., 'latest advancements in AI'"
+                            {...field} 
+                            onChange={handleQueryInputChange} 
+                            className="text-sm"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button 
+                    type="submit" 
+                    disabled={isLoading} 
+                    className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-lg py-6"
+                    onContextMenu={handleSearchButtonContextMenu}
+                    title="Left-click to search. Right-click to toggle verbose AI logs."
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Searching...
+                      </>
+                    ) : (
+                      <>
+                        <Search className="mr-2 h-5 w-5" />
+                        Search
+                      </>
+                    )}
+                    {isVerboseLoggingEnabled && <MessageCircleMore className="ml-2 h-4 w-4 text-accent-foreground/70" />}
+                  </Button>
+                </form>
+              </Form>
+            </CardContent>
+          </Card>
+
+          {recentSearches.length > 0 && (
+            <Card className="border-secondary shadow-lg shadow-secondary/20 mt-8">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <History className="h-5 w-5 text-accent" />
+                  <CardTitle className="text-xl">Recent Searches</CardTitle>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleClearHistory}
+                  title="Clear search history"
+                  className="text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="h-5 w-5" />
+                  <span className="sr-only">Clear search history</span>
+                </Button>
               </CardHeader>
-              <CardContent>
-                <p className="text-base leading-relaxed">
-                  The AI couldn't generate specific content for your query. Try rephrasing or broadening your search.
-                </p>
+              <CardContent className="flex flex-wrap gap-2">
+                {recentSearches.map((searchTerm, index) => (
+                  <Button
+                    key={index}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRecentSearchClick(searchTerm)}
+                    className="text-sm hover:bg-accent/10"
+                  >
+                    {searchTerm}
+                  </Button>))}
               </CardContent>
             </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="md:col-span-2 space-y-8">
-                {searchResult.answer && searchResult.answer.answer && (
-                  <Card className="border-accent shadow-lg shadow-accent/20">
-                    <CardHeader>
-                      <CardTitle className="text-2xl flex items-center gap-2"><Brain className="h-6 w-6 text-accent"/> AI Answer</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-base leading-relaxed whitespace-pre-wrap">{searchResult.answer.answer}</p>
-                    </CardContent>
-                  </Card>
-                )}
+          )}
+        </div>
 
-                {searchResult.searchResults && searchResult.searchResults.webResults && searchResult.searchResults.webResults.length > 0 && (
+
+        {/* === Search Results View === */}
+        {hasSearched && (
+          <div className="space-y-8">
+             {isLoading && (
+              <div className="flex justify-center items-center p-10">
+                <Loader2 className="h-12 w-12 text-primary animate-spin" />
+                <p className="ml-4 text-xl text-muted-foreground">Searching the digital cosmos...</p>
+              </div>
+            )}
+
+            {searchResult && searchResult.error && !isLoading && (
+              <Card className="border-destructive shadow-lg shadow-destructive/20">
+                <CardHeader>
+                  <CardTitle className="text-destructive flex items-center gap-2">
+                    <AlertTriangle className="h-6 w-6" /> Error
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-destructive-foreground whitespace-pre-wrap">{searchResult.error}</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {searchResult && !searchResult.error && !isLoading && (
+              <>
+                {(!searchResult.answer?.answer &&
+                 (!searchResult.searchResults?.webResults || searchResult.searchResults.webResults.length === 0) &&
+                 fetchedImages.length === 0
+                ) ? (
                   <Card className="border-primary shadow-lg shadow-primary/20">
                     <CardHeader>
-                      <CardTitle className="text-2xl flex items-center gap-2"><ListTree className="h-6 w-6 text-accent"/> Search Results</CardTitle>
+                      <CardTitle className="text-2xl flex items-center gap-2"><Search className="h-6 w-6 text-accent"/> No Specific Results</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-6">
-                      {searchResult.searchResults.webResults.map((item, index) => (
-                        <Card key={index} className="bg-card/50 border-border/50 hover:border-accent transition-colors duration-150">
-                          <CardContent className="pt-6">
-                            <div className="flex-grow">
-                              <CardTitle className="text-lg mb-1">
-                                <a
-                                  href={item.link}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-primary hover:text-accent hover:underline flex items-center gap-1 group"
-                                >
-                                  {item.title}
-                                  <ExternalLink className="h-4 w-4 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
-                                </a>
-                              </CardTitle>
-                              <CardDescription className="text-xs text-muted-foreground pt-1 break-all mb-2">{item.link}</CardDescription>
-                              <p className="text-sm leading-relaxed mb-2">{item.snippet}</p>
+                    <CardContent>
+                      <p className="text-base leading-relaxed">
+                        The AI couldn't generate specific content for your query. Try rephrasing or broadening your search.
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div className="md:col-span-2 space-y-8">
+                      {searchResult.answer && searchResult.answer.answer && (
+                        <Card className="border-accent shadow-lg shadow-accent/20">
+                          <CardHeader>
+                            <CardTitle className="text-2xl flex items-center gap-2"><Brain className="h-6 w-6 text-accent"/> AI Answer</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="text-base leading-relaxed whitespace-pre-wrap">{searchResult.answer.answer}</p>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      {searchResult.searchResults && searchResult.searchResults.webResults && searchResult.searchResults.webResults.length > 0 && (
+                        <Card className="border-primary shadow-lg shadow-primary/20">
+                          <CardHeader>
+                            <CardTitle className="text-2xl flex items-center gap-2"><ListTree className="h-6 w-6 text-accent"/> Search Results</CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-6">
+                            {searchResult.searchResults.webResults.map((item, index) => (
+                              <Card key={index} className="bg-card/50 border-border/50 hover:border-accent transition-colors duration-150">
+                                <CardContent className="pt-6">
+                                  <div className="flex-grow">
+                                    <CardTitle className="text-lg mb-1">
+                                      <a
+                                        href={item.link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-primary hover:text-accent hover:underline flex items-center gap-1 group"
+                                      >
+                                        {item.title}
+                                        <ExternalLink className="h-4 w-4 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
+                                      </a>
+                                    </CardTitle>
+                                    <CardDescription className="text-xs text-muted-foreground pt-1 break-all mb-2">{item.link}</CardDescription>
+                                    <p className="text-sm leading-relaxed mb-2">{item.snippet}</p>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </CardContent>
+                        </Card>
+                      )}
+                    </div>
+
+                    {fetchedImages.length > 0 && (
+                      <div className="md:col-span-1 space-y-8">
+                        <Card className="border-secondary shadow-lg shadow-secondary/20">
+                          <CardHeader>
+                            <CardTitle className="text-xl flex items-center gap-2">
+                              <ImageIcon className="h-5 w-5 text-accent"/> Images
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="grid grid-cols-2 gap-4">
+                              {fetchedImages.map((img, index) => {
+                                let hint = "image";
+                                const currentQuery = form.getValues("query").split(' ').slice(0, 2).join(' ') || "image query";
+
+                                if (img.imageUrl.includes('placehold.co')) {
+                                  hint = currentQuery;
+                                } else if (img.altText && !img.altText.toLowerCase().startsWith('image related to') && !img.altText.toLowerCase().includes(currentQuery.toLowerCase())) {
+                                  hint = img.altText.split(' ').slice(0, 2).join(' ');
+                                } else {
+                                  hint = currentQuery;
+                                }
+                                hint = hint || "image"; 
+                                hint = hint.split(' ').slice(0, 2).join(' '); 
+
+                                return (
+                                  <div key={index} className="group">
+                                    <a href={img.sourceUrl || '#'} target="_blank" rel="noopener noreferrer" className="block">
+                                      <div className="relative w-full aspect-square mb-1">
+                                        <Image
+                                          src={img.imageUrl}
+                                          alt={img.altText || `Image ${index + 1} for ${form.getValues("query")}`}
+                                          fill
+                                          style={{ objectFit: 'cover' }}
+                                          className="rounded-md border border-border shadow-md group-hover:opacity-80 transition-opacity"
+                                          data-ai-hint={hint}
+                                          priority={index < 4}
+                                          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+                                        />
+                                      </div>
+                                    </a>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </CardContent>
                         </Card>
-                      ))}
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-
-              {fetchedImages.length > 0 && (
-                <div className="md:col-span-1 space-y-8">
-                  <Card className="border-secondary shadow-lg shadow-secondary/20">
-                    <CardHeader>
-                      <CardTitle className="text-xl flex items-center gap-2">
-                        <ImageIcon className="h-5 w-5 text-accent"/> Images
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 gap-4">
-                        {fetchedImages.map((img, index) => {
-                          let hint = "image";
-                          const currentQuery = form.getValues("query").split(' ').slice(0, 2).join(' ') || "image query";
-
-                          if (img.imageUrl.includes('placehold.co')) {
-                            hint = currentQuery;
-                          } else if (img.altText && !img.altText.toLowerCase().startsWith('image related to') && !img.altText.toLowerCase().includes(currentQuery.toLowerCase())) {
-                            hint = img.altText.split(' ').slice(0, 2).join(' ');
-                          } else {
-                            hint = currentQuery;
-                          }
-                          hint = hint || "image"; 
-                          hint = hint.split(' ').slice(0, 2).join(' '); 
-
-                          return (
-                            <div key={index} className="group">
-                              <a href={img.sourceUrl || '#'} target="_blank" rel="noopener noreferrer" className="block">
-                                <div className="relative w-full aspect-square mb-1">
-                                  <Image
-                                    src={img.imageUrl}
-                                    alt={img.altText || `Image ${index + 1} for ${form.getValues("query")}`}
-                                    fill
-                                    style={{ objectFit: 'cover' }}
-                                    className="rounded-md border border-border shadow-md group-hover:opacity-80 transition-opacity"
-                                    data-ai-hint={hint}
-                                    priority={index < 4}
-                                    sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
-                                  />
-                                </div>
-                              </a>
-                            </div>
-                          );
-                        })}
                       </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-
-    
