@@ -208,7 +208,6 @@ export default function RetroInfoInterface() {
       toast({
         title: "Verbose Logging",
         description: newState ? "Verbose AI logs enabled." : "Verbose AI logs disabled.",
-        icon: newState ? <MessageCircleMore className="h-5 w-5 text-accent" /> : <MessageCircleOff className="h-5 w-5 text-muted-foreground" />
       });
       return newState;
     });
@@ -409,7 +408,7 @@ export default function RetroInfoInterface() {
                         Search
                       </>
                     )}
-                    {isVerboseLoggingEnabled && <MessageCircleMore className="ml-2 h-4 w-4 text-accent-foreground/70" />}
+                    {isVerboseLoggingEnabled && <MessageCircleMore className="absolute top-0 right-0 h-3 w-3 text-background/80" />}
                   </Button>
                 </form>
               </Form>

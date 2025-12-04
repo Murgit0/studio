@@ -11,6 +11,8 @@ import { LogIn, LogOut, UserCircle, AlertTriangle, Mail, KeyRound, UserPlus, Loa
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+
 
 export default function AuthStatus() {
   const [session, setSession] = useState<Session | null>(null);
@@ -20,6 +22,7 @@ export default function AuthStatus() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const { toast } = useToast();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!supabaseConfigured || !supabase) {
@@ -44,6 +47,7 @@ export default function AuthStatus() {
         setLoading(false);
         setAuthLoading(false); // Reset auth specific loading
         if (_event === 'SIGNED_IN') {
+          setIsDialogOpen(false); // Close dialog on successful sign in
           toast({ title: "Login Successful", description: `Welcome back, ${newSession?.user?.email || 'user'}!` });
           setEmail(''); // Clear form
           setPassword('');
@@ -91,6 +95,7 @@ export default function AuthStatus() {
       toast({ variant: "destructive", title: "Sign Up Error", description: error.message });
     } else {
       toast({ title: "Sign Up Successful", description: "Please check your email to confirm your registration." });
+      setIsDialogOpen(false);
       // Email and password fields are cleared by onAuthStateChange if successful, or kept for correction
     }
     setAuthLoading(false);
@@ -142,54 +147,61 @@ export default function AuthStatus() {
   }
 
   return (
-    <Card className="w-full max-w-sm border-primary shadow-primary/10">
-      <CardHeader>
-        <CardTitle className="text-xl">Authenticate</CardTitle>
-        <CardDescription>Sign in or create an account to continue.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <form onSubmit={handleSignIn} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input 
-                id="email" 
-                type="email" 
-                placeholder="you@example.com" 
-                value={email}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
-                required 
-                className="pl-10"
-              />
-            </div>
+    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="border-accent text-accent hover:bg-accent/10">
+          <UserCircle className="mr-2 h-4 w-4" />
+          Login
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px] bg-background border-primary">
+          <DialogHeader>
+              <DialogTitle className="text-xl">Authenticate</DialogTitle>
+              <DialogDescription>Sign in or create an account to continue.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+              <form onSubmit={handleSignIn} className="space-y-4">
+                  <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <div className="relative">
+                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                              id="email"
+                              type="email"
+                              placeholder="you@example.com"
+                              value={email}
+                              onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+                              required
+                              className="pl-10"
+                          />
+                      </div>
+                  </div>
+                  <div className="space-y-2">
+                      <Label htmlFor="password">Password</Label>
+                      <div className="relative">
+                          <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                              id="password"
+                              type="password"
+                              placeholder="••••••••"
+                              value={password}
+                              onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+                              required
+                              className="pl-10"
+                          />
+                      </div>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                      <Button type="submit" disabled={authLoading} className="w-full bg-primary hover:bg-primary/90 flex-1">
+                          {authLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />} Sign In
+                      </Button>
+                      <Button type="button" variant="outline" onClick={handleSignUp} disabled={authLoading} className="w-full border-accent text-accent hover:bg-accent/10 flex-1">
+                          {authLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />} Sign Up
+                      </Button>
+                  </div>
+              </form>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <div className="relative">
-              <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input 
-                id="password" 
-                type="password" 
-                placeholder="••••••••" 
-                value={password}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-                required 
-                className="pl-10"
-              />
-            </div>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Button type="submit" disabled={authLoading} className="w-full bg-primary hover:bg-primary/90 flex-1">
-              {authLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />} Sign In
-            </Button>
-            <Button type="button" variant="outline" onClick={handleSignUp} disabled={authLoading} className="w-full border-accent text-accent hover:bg-accent/10 flex-1">
-              {authLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />} Sign Up
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+      </DialogContent>
+    </Dialog>
   );
 }
-
