@@ -19,6 +19,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
+const GENERIC_ERROR_MESSAGE = "Contact developer and lodge an issue";
 
 export default function AuthStatus() {
   const [session, setSession] = useState<Session | null>(null);
@@ -105,7 +106,8 @@ export default function AuthStatus() {
     setAuthLoading(true);
     const { error } = await supabase.auth.signUp({ email, password });
     if (error) {
-      toast({ variant: "destructive", title: "Sign Up Error", description: error.message });
+      console.error("Sign Up Error:", error);
+      toast({ variant: "destructive", title: "Sign Up Error", description: GENERIC_ERROR_MESSAGE });
     } else {
       toast({ title: "Sign Up Successful", description: "Please check your email to confirm your registration." });
       setIsDialogOpen(false);
@@ -120,7 +122,8 @@ export default function AuthStatus() {
     setAuthLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      toast({ variant: "destructive", title: "Sign In Error", description: error.message });
+      console.error("Sign In Error:", error);
+      toast({ variant: "destructive", title: "Sign In Error", description: GENERIC_ERROR_MESSAGE });
     }
     // Success is handled by onAuthStateChange
     setAuthLoading(false);
@@ -131,7 +134,8 @@ export default function AuthStatus() {
     setAuthLoading(true);
     const { error } = await supabase.auth.signOut();
     if (error) {
-      toast({ variant: "destructive", title: "Logout Error", description: error.message });
+      console.error("Logout Error:", error);
+      toast({ variant: "destructive", title: "Logout Error", description: GENERIC_ERROR_MESSAGE });
     }
     // Auth listener will update state and setAuthLoading(false)
   };
@@ -218,5 +222,3 @@ export default function AuthStatus() {
     </Dialog>
   );
 }
-
-  

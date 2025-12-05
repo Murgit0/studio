@@ -8,6 +8,8 @@ import { generateAnswer, type GenerateAnswerInput as FlowGenerateAnswerInput, ty
 import { generateSearchResults as fetchWebAndImageResults, type PerformWebSearchInput as FlowPerformWebSearchInput, type PerformWebSearchOutput } from "@/ai/flows/generate-search-results-flow";
 import { sortSearchResults, type SortSearchResultsInput as FlowSortSearchResultsInput, type SortSearchResultsOutput } from "@/ai/flows/sort-search-results-flow"; 
 
+const GENERIC_ERROR_MESSAGE = "Contact developer and lodge an issue";
+
 // --- Schemas and Types for generate-answer-flow ---
 const ActionGenerateAnswerInputSchema = z.object({
   query: z.string().describe('The user query for which to generate an answer.'),
@@ -96,7 +98,9 @@ export async function processSearchQuery(
   const validatedInput = processSearchQueryInputSchema.safeParse(input);
 
   if (!validatedInput.success) {
-    return { error: validatedInput.error.errors.map(e => e.message).join(", ") };
+    // This is a validation error, which is a bit different, but we'll still use the generic message.
+    console.error("Input validation error:", validatedInput.error.errors);
+    return { error: GENERIC_ERROR_MESSAGE };
   }
 
   const { query, verbose, location, deviceInfo, recentSearches } = validatedInput.data;
@@ -105,9 +109,8 @@ export async function processSearchQuery(
   }
 
   try {
-    // For flows that don't use location/deviceInfo, we only pass query and verbose
-    const webSearchArgs = { query, verbose }; // fetchWebAndImageResults doesn't use recentSearches, location, or deviceInfo directly
-    const answerArgs = { query, verbose, recentSearches }; // generateAnswer uses query, verbose, recentSearches
+    const webSearchArgs = { query, verbose }; 
+    const answerArgs = { query, verbose, recentSearches }; 
     
     const [answerResult, searchResultsCombined] = await Promise.allSettled([
       generateAnswer(answerArgs as FlowGenerateAnswerInput), 
@@ -136,7 +139,7 @@ export async function processSearchQuery(
                 verbose,
                 location: location, 
                 deviceInfo: deviceInfo, 
-                recentSearches: recentSearches, // Pass recentSearches to sorting flow
+                recentSearches: recentSearches, 
             };
             
             const sortedResultsAction = await sortSearchResults(sortInput);
@@ -162,43 +165,38 @@ export async function processSearchQuery(
       }
     }
 
-
-    let errorMessages: string[] = [];
+    let hasErrors = false;
     if (answerResult.status === 'rejected') {
       console.error("Error generating answer:", answerResult.reason);
-      const reasonText = answerResult.reason instanceof Error ? answerResult.reason.message : String(answerResult.reason);
-      errorMessages.push(`AI Answer generation failed: ${reasonText.substring(0,150)}`);
-       if (verbose) console.log('[VERBOSE ACTION] Answer generation rejected:', answerResult.reason);
+      hasErrors = true;
+      if (verbose) console.log('[VERBOSE ACTION] Answer generation rejected:', answerResult.reason);
     }
     if (searchResultsCombined.status === 'rejected') {
       console.error("Error generating search results:", searchResultsCombined.reason);
-      const reasonText = searchResultsCombined.reason instanceof Error ? searchResultsCombined.reason.message : String(searchResultsCombined.reason);
-      errorMessages.push(`Search Results generation failed: ${reasonText.substring(0,150)}`);
+      hasErrors = true;
       if (verbose) console.log('[VERBOSE ACTION] Search results generation rejected:', searchResultsCombined.reason);
     } else if (searchResultsCombined.status === 'fulfilled' && !GenerateSearchResultsOutputSchema.safeParse(searchResultsCombined.value).success) {
-      errorMessages.push(`Search Results format error. Check tool output logs.`);
+      hasErrors = true;
     }
     
-    if (!answer && 
-        (!parsedSearchResults || 
-         ((!parsedSearchResults.webResults || parsedSearchResults.webResults.length === 0) && 
-          (!parsedSearchResults.images || parsedSearchResults.images.length === 0))) && 
-        errorMessages.length > 0) {
-      if (verbose) console.log('[VERBOSE ACTION] No answer and no search results, returning error.');
-      return { error: errorMessages.join("; ") };
+    if (hasErrors) {
+      if (verbose) console.log('[VERBOSE ACTION] One or more operations failed. Returning generic error.');
+      return { 
+        answer, // Return any partial data we got
+        searchResults: parsedSearchResults,
+        error: GENERIC_ERROR_MESSAGE
+      };
     }
     
     if (verbose) console.log('[VERBOSE ACTION] processSearchQuery completed.');
     return {
       answer,
       searchResults: parsedSearchResults,
-      error: errorMessages.length > 0 ? errorMessages.join("; ") : undefined,
     };
 
   } catch (e) {
-    console.error("Error processing search query:", e);
-    const errorMessage = e instanceof Error ? e.message : "An unexpected error occurred.";
+    console.error("Outer error processing search query:", e);
     if (verbose) console.log('[VERBOSE ACTION] Outer catch block error in processSearchQuery:', e);
-    return { error: `An error occurred while processing your request: ${errorMessage.substring(0,200)}` };
+    return { error: GENERIC_ERROR_MESSAGE };
   }
 }

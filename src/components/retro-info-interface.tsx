@@ -39,6 +39,8 @@ const DEFAULT_LOCATION_INDIA: LocationData = {
   longitude: 77.2090,
 };
 
+const GENERIC_ERROR_MESSAGE = "Contact developer and lodge an issue";
+
 export default function RetroInfoInterface() {
   const [searchResult, setSearchResult] = useState<SearchActionResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -53,7 +55,6 @@ export default function RetroInfoInterface() {
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 
-  // hasSearched is now derived from whether we are loading or have results/errors.
   const hasSearched = isLoading || searchResult !== null;
   
   useEffect(() => {
@@ -174,7 +175,7 @@ export default function RetroInfoInterface() {
         toast({
           variant: "destructive",
           title: "Processing Issue",
-          description: response.error,
+          description: response.error, // This will now be the generic message from actions.ts
         });
       } else if (!response.answer?.answer && (!response.searchResults?.webResults || response.searchResults.webResults.length === 0) && (!response.searchResults?.images || response.searchResults.images.length === 0)) {
         toast({
@@ -190,12 +191,11 @@ export default function RetroInfoInterface() {
       }
     } catch (error) {
       console.error("Submission error:", error);
-      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
-      setSearchResult({ error: errorMessage });
+      setSearchResult({ error: GENERIC_ERROR_MESSAGE });
       toast({
         variant: "destructive",
         title: "Submission Error",
-        description: errorMessage,
+        description: GENERIC_ERROR_MESSAGE,
       });
     } finally {
       setIsLoading(false);
@@ -237,7 +237,7 @@ export default function RetroInfoInterface() {
       toast({
         variant: "destructive",
         title: "Error Clearing History",
-        description: "Could not remove search history from local storage.",
+        description: GENERIC_ERROR_MESSAGE,
       });
     }
   };
@@ -504,5 +504,3 @@ export default function RetroInfoInterface() {
     </div>
   );
 }
-
-    
