@@ -250,16 +250,16 @@ export default function RetroInfoInterface() {
   const fetchedImages: ActionImageResultItem[] = searchResult?.searchResults?.images || [];
   const hasSearched = isLoading || searchResult !== null;
 
-  const searchFormComponent = (isHeader: boolean) => (
+  const SearchFormComponent = ({ isHeader }: { isHeader: boolean }) => (
       <Form {...form}>
         <form 
             onSubmit={form.handleSubmit(onSubmit)} 
             className={cn(
                 "w-full flex items-start gap-2", 
-                isHeader ? "max-w-xl mx-auto" : "max-w-2xl flex-col"
+                isHeader ? "max-w-xl mx-auto" : "max-w-2xl flex-col sm:flex-row"
             )}
         >
-          <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+          <Popover open={isPopoverOpen && !isHeader} onOpenChange={setIsPopoverOpen}>
             <PopoverAnchor asChild>
                 <FormField
                     control={form.control}
@@ -274,7 +274,10 @@ export default function RetroInfoInterface() {
                                 placeholder="e.g., 'latest advancements in AI'"
                                 {...field}
                                 onChange={handleQueryInputChange}
-                                className={cn("text-base h-12 pr-10", isHeader && "h-11")}
+                                className={cn(
+                                    "text-base", 
+                                    isHeader ? "h-11 pr-10" : "h-12 bg-input placeholder:text-muted-foreground/80 border-secondary focus:border-accent"
+                                )}
                                 onFocus={() => setIsPopoverOpen(true)}
                                 autoComplete="off"
                             />
@@ -331,12 +334,16 @@ export default function RetroInfoInterface() {
           <Button 
             type="submit" 
             disabled={isLoading} 
-            className={cn("bg-accent text-accent-foreground hover:bg-accent/90", isHeader ? "h-11" : "h-12 w-full sm:w-auto")}
+            className={cn(
+                "bg-accent text-accent-foreground hover:bg-accent/90", 
+                isHeader ? "h-11" : "h-12 w-full sm:w-auto text-lg"
+            )}
             onContextMenu={handleSearchButtonContextMenu}
             title="Left-click to search. Right-click to toggle verbose AI logs."
           >
             {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
-            <span className={cn(isHeader && "hidden sm:inline")}>Search</span>
+            <span className={cn(isHeader && "hidden sm:inline")}>{isHeader ? 'Search' : ''}</span>
+            {!isHeader && <span>Search</span>}
             {isVerboseLoggingEnabled && <MessageCircleMore className="absolute top-1 right-1 h-3 w-3 text-background/80" />}
           </Button>
         </form>
@@ -364,34 +371,7 @@ export default function RetroInfoInterface() {
                               <CardTitle className="text-primary text-lg">Search Query</CardTitle>
                           </CardHeader>
                           <CardContent>
-                            <Form {...form}>
-                              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                                <FormField
-                                  control={form.control}
-                                  name="query"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormControl>
-                                        <Input
-                                          placeholder="e.g., 'latest advancements in AI'"
-                                          {...field}
-                                          className="h-12 text-base bg-input placeholder:text-muted-foreground/80 border-secondary focus:border-accent"
-                                        />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                                <Button type="submit" disabled={isLoading} className="w-full h-12 bg-accent text-accent-foreground text-lg hover:bg-accent/90">
-                                  {isLoading ? (
-                                    <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-                                  ) : (
-                                    <Search className="mr-2 h-5 w-5" />
-                                  )}
-                                  Search
-                                </Button>
-                              </form>
-                            </Form>
+                            <SearchFormComponent isHeader={false} />
                           </CardContent>
                       </Card>
 
@@ -443,7 +423,7 @@ export default function RetroInfoInterface() {
             Xpoxial Search
           </h1>
           <div className="flex-grow">
-            {searchFormComponent(true)}
+            <SearchFormComponent isHeader={true} />
           </div>
           <AuthStatus />
         </div>
@@ -590,5 +570,7 @@ export default function RetroInfoInterface() {
     </div>
   );
 }
+
+    
 
     
