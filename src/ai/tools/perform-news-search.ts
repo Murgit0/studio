@@ -59,11 +59,11 @@ async function performNewsSearchToolHandler(input: PerformNewsSearchInput): Prom
   }
   const newsApiKey = process.env.NEWS_API_KEY;
 
-  if (!newsApiKey || newsApiKey === 'YOUR_NEWS_API_KEY') {
+  if (!newsApiKey || newsApiKey === 'YOUR_NEWS_API_KEY_HERE') {
     let warningMessage = 'NewsAPI not configured: ';
     if (!newsApiKey) warningMessage += 'NEWS_API_KEY missing. ';
-    if (newsApiKey === 'YOUR_NEWS_API_KEY') warningMessage += 'NEWS_API_KEY is a placeholder. ';
-    console.warn(`${warningMessage}Skipping news search.`);
+    if (newsApiKey === 'YOUR_NEWS_API_KEY_HERE') warningMessage += 'NEWS_API_KEY is a placeholder. ';
+    console.warn(`${warningMessage}Returning mock news articles.`);
     if (input.verbose) console.log(`[VERBOSE TOOL] ${warningMessage}`);
     return { articles: getMockNews(input.query).articles }; // Return mock news if not configured
   }
@@ -104,10 +104,10 @@ async function performNewsSearchToolHandler(input: PerformNewsSearchInput): Prom
               source: item.source.name,
               publishedAt: item.publishedAt,
             }));
-          console.log(`Fetched ${articles.length} news article(s) from NewsAPI (attempt ${attempts}/${MAX_API_ATTEMPTS}).`);
+          if (input.verbose) console.log(`Fetched ${articles.length} valid news article(s) from NewsAPI (attempt ${attempts}/${MAX_API_ATTEMPTS}).`);
           break; // Success, exit retry loop
         } else {
-          console.log(`No news articles found on NewsAPI after ${attempts} attempts for "${input.query}".`);
+          if (input.verbose) console.log(`No news articles found on NewsAPI on attempt ${attempts} for "${input.query}".`);
         }
       }
     } catch (error) {
@@ -129,14 +129,15 @@ async function performNewsSearchToolHandler(input: PerformNewsSearchInput): Prom
 }
 
 function getMockNews(query: string): PerformNewsSearchOutput {
-  const safeQuery = query || "mock";
+  const safeQuery = query || "latest";
+  const encodedQuery = encodeURIComponent(query);
   return {
     articles: Array.from({ length: 10 }).map((_, i) => ({
-      title: `Mock News ${i + 1}: ${safeQuery}`,
-      description: `This is mock news article ${i+1}. To get real news, please provide a valid NEWS_API_KEY in your environment variables.`,
-      url: `https://example.com/mock-news${i+1}`,
-      source: "Mock News Provider",
-      publishedAt: new Date().toISOString(),
+      title: `Mock News ${i + 1}: The latest on ${safeQuery}`,
+      description: `This is mock news article #${i+1}. To get real-time news, please add a valid NEWS_API_KEY (from newsapi.org) to your .env file and restart the server.`,
+      url: `https://example.com/mock-news?q=${encodedQuery}&i=${i+1}`,
+      source: "Mock News Chronicle",
+      publishedAt: new Date(Date.now() - (i * 3600000)).toISOString(), // Staggered publication times
     })),
   };
 }
