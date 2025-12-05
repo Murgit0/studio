@@ -43,7 +43,7 @@ export type ImageResultItem = z.infer<typeof ImageResultItemSchema>;
 // Schema for the tool's output
 const PerformWebSearchOutputSchema = z.object({
   webResults: z.array(WebSearchResultItemSchema).max(10).describe('An array of web search results (max 10).'),
-  images: z.array(ImageResultItemSchema).max(20).optional().describe('An array of image search results (max 20).'),
+  images: z.array(ImageResultItemSchema).max(30).optional().describe('An array of image search results (max 30).'),
 });
 export type PerformWebSearchOutput = z.infer<typeof PerformWebSearchOutputSchema>;
 
@@ -62,7 +62,7 @@ export async function performWebSearch(input: PerformWebSearchInput): Promise<Pe
 }
 
 const MAX_WEB_RESULTS = 10;
-const MAX_IMAGES_TO_FETCH = 20;
+const MAX_IMAGES_TO_FETCH = 30;
 const MAX_API_ATTEMPTS = 2; // Max 1 initial + 1 retry
 const RETRY_DELAY_MS = 500;
 
@@ -288,7 +288,7 @@ async function performWebSearchToolHandler(input: PerformWebSearchInput): Promis
   if (images.length === 0 && webResults.length > 0) { // Only use placeholders if web results exist but no images
     if (input.verbose) console.log("[VERBOSE TOOL] No images fetched from Google or Pexels, but web results exist. Providing placeholder images.");
     const safeQuery = input.query || "image";
-    images = Array.from({ length: Math.min(MAX_IMAGES_TO_FETCH, 6) }).map((_, i) => ({ 
+    images = Array.from({ length: Math.min(MAX_IMAGES_TO_FETCH, 30) }).map((_, i) => ({ 
         imageUrl: `https://placehold.co/300x200.png`,
         altText: `Placeholder image for ${safeQuery} ${i+1}`,
         sourcePlatform: "Placeholder",
@@ -321,7 +321,7 @@ function getMockSearchResults(query: string): PerformWebSearchOutput {
       link: `https://example.com/mock-web${i+1}?q=${encodedQuery}`,
       snippet: `This is mock web search result snippet ${i+1}. Configure your Search API (SEARCH_API_KEY and SEARCH_ENGINE_ID in environment variables) and/or DuckDuckScrape for real results.`,
     })),
-    images: Array.from({ length: Math.min(MAX_IMAGES_TO_FETCH, 6) }).map((_, i) => ({ 
+    images: Array.from({ length: Math.min(MAX_IMAGES_TO_FETCH, 30) }).map((_, i) => ({ 
         imageUrl: `https://placehold.co/300x200.png`,
         altText: `Mock Image ${i+1} for ${safeQuery}`,
         photographerName: `Mock Artist ${i+1}`,
@@ -342,3 +342,6 @@ const performWebSearchTool = ai.defineTool(
   performWebSearchToolHandler
 );
 
+
+
+    

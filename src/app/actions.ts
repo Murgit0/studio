@@ -44,7 +44,7 @@ export type ImageResultItem = z.infer<typeof ImageResultItemSchema>;
 
 const GenerateSearchResultsOutputSchema = z.object({
   webResults: z.array(WebSearchResultItemSchema).max(10).describe('An array of web search results (max 10).'),
-  images: z.array(ImageResultItemSchema).max(20).optional().describe('An array of image search results (max 20).'),
+  images: z.array(ImageResultItemSchema).max(30).optional().describe('An array of image search results (max 30).'),
 });
 export type GenerateSearchResultsOutput = z.infer<typeof GenerateSearchResultsOutputSchema>;
 // --- End Schemas and Types from generate-search-results-flow.ts ---
@@ -255,3 +255,5 @@ export async function getStockImages(
     return { webResults: [], images: [] };
   }
 }
+
+    
