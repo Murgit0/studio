@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, ChangeEvent } from "react";
+import { useState, useEffect, ChangeEvent, FormEvent } from "react";
 import Image from 'next/image';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -16,7 +16,6 @@ import { useToast } from "@/hooks/use-toast";
 import AuthStatus from '@/components/AuthStatus';
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger, PopoverAnchor } from "@/components/ui/popover";
-
 
 const formSchema = z.object({
   query: z.string().min(3, { message: "Query must be at least 3 characters." }),
@@ -40,6 +39,7 @@ const DEFAULT_LOCATION_INDIA: LocationData = {
 };
 
 const GENERIC_ERROR_MESSAGE = "Contact developer and lodge an issue";
+
 
 export default function RetroInfoInterface() {
   const [searchResult, setSearchResult] = useState<SearchActionResult | null>(null);
@@ -220,6 +220,10 @@ export default function RetroInfoInterface() {
   
   const handleQueryInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     form.setValue("query", event.target.value);
+    const value = event.target.value;
+    if (value.length > 0) {
+      setIsPopoverOpen(true);
+    }
   };
 
   const handleClearHistory = () => {
@@ -273,7 +277,103 @@ export default function RetroInfoInterface() {
       ))}
     </div>
   );
+  
+  const searchFormComponent = (isHeader: boolean) => (
+      <Form {...form}>
+        <form 
+            onSubmit={form.handleSubmit(onSubmit)} 
+            className={cn(
+                "w-full flex items-start gap-2", 
+                isHeader ? "max-w-xl mx-auto" : "max-w-2xl flex-col"
+            )}
+        >
+          <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+            <PopoverAnchor asChild>
+                <FormField
+                    control={form.control}
+                    name="query"
+                    render={({ field }) => (
+                    <FormItem className="flex-grow w-full">
+                        {!isHeader && <FormLabel htmlFor="main-query-input" className="sr-only">Search Query</FormLabel>}
+                        <FormControl>
+                        <div className="relative">
+                            <Input
+                            id="main-query-input"
+                            placeholder="e.g., 'latest advancements in AI'"
+                            {...field}
+                            onChange={handleQueryInputChange}
+                            className={cn("text-base h-12 pr-10", isHeader && "h-11")}
+                            onFocus={() => setIsPopoverOpen(true)}
+                            autoComplete="off"
+                            />
+                            {field.value && (
+                            <Button 
+                                type="button" 
+                                variant="ghost" 
+                                size="icon" 
+                                className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground"
+                                onClick={() => {form.setValue('query', ''); setIsPopoverOpen(true);}}
+                            >
+                                <X className="h-4 w-4"/>
+                            </Button>
+                            )}
+                        </div>
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+            </PopoverAnchor>
+            {recentSearches.length > 0 && (
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+                {renderRecentSearchesList(true)}
+                </PopoverContent>
+            )}
+          </Popover>
+          <Button 
+            type="submit" 
+            disabled={isLoading} 
+            className={cn("bg-accent text-accent-foreground hover:bg-accent/90", isHeader ? "h-11" : "h-12 w-full sm:w-auto")}
+            onContextMenu={handleSearchButtonContextMenu}
+            title="Left-click to search. Right-click to toggle verbose AI logs."
+          >
+            {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
+            <span className={cn(isHeader && "hidden sm:inline")}>Search</span>
+            {isVerboseLoggingEnabled && <MessageCircleMore className="absolute top-1 right-1 h-3 w-3 text-background/80" />}
+          </Button>
+        </form>
+      </Form>
+  );
 
+
+  if (!hasSearched) {
+      return (
+          <div className="flex flex-col h-screen">
+            <header className="absolute top-0 right-0 p-4">
+              <AuthStatus />
+            </header>
+            <main className="flex-grow flex flex-col items-center justify-center p-4">
+              <div className="w-full max-w-2xl flex flex-col items-center gap-6">
+                <h1
+                  onClick={handleTitleClick}
+                  className="text-5xl md:text-7xl font-bold text-primary cursor-pointer select-none"
+                  title="Try clicking me twice!"
+                >
+                  Xpoxial Search
+                </h1>
+                {searchFormComponent(false)}
+                {recentSearches.length > 0 && (
+                  <Card className="w-full border-secondary/50 shadow-lg shadow-secondary/10">
+                    <CardContent className="pt-4">
+                      {renderRecentSearchesList(false)}
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </main>
+          </div>
+      );
+  }
 
   return (
     <div className="flex flex-col h-screen">
@@ -286,83 +386,15 @@ export default function RetroInfoInterface() {
           >
             Xpoxial Search
           </h1>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="flex-grow flex items-center gap-2">
-              <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
-                <PopoverAnchor asChild>
-                  <FormField
-                    control={form.control}
-                    name="query"
-                    render={({ field }) => (
-                      <FormItem className="flex-grow">
-                         <FormControl>
-                          <div className="relative">
-                             <Input
-                              id="main-query-input"
-                              placeholder="e.g., 'latest advancements in AI'"
-                              {...field}
-                              onChange={handleQueryInputChange}
-                              className="text-base h-11 pr-10"
-                              onFocus={() => setIsPopoverOpen(true)}
-                              autoComplete="off"
-                            />
-                            {field.value && (
-                              <Button 
-                                type="button" 
-                                variant="ghost" 
-                                size="icon" 
-                                className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground"
-                                onClick={() => {form.setValue('query', ''); setIsPopoverOpen(true);}}
-                              >
-                                <X className="h-4 w-4"/>
-                              </Button>
-                            )}
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </PopoverAnchor>
-                {recentSearches.length > 0 && (
-                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
-                    {renderRecentSearchesList(true)}
-                  </PopoverContent>
-                )}
-              </Popover>
-              <Button 
-                type="submit" 
-                disabled={isLoading} 
-                className="bg-accent text-accent-foreground hover:bg-accent/90"
-                size="icon"
-                onContextMenu={handleSearchButtonContextMenu}
-                title="Left-click to search. Right-click to toggle verbose AI logs."
-              >
-                {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
-                {isVerboseLoggingEnabled && <MessageCircleMore className="absolute top-0 right-0 h-3 w-3 text-background/80" />}
-              </Button>
-            </form>
-          </Form>
+          <div className="flex-grow">
+            {searchFormComponent(true)}
+          </div>
           <AuthStatus />
         </div>
       </header>
 
       <main className="flex-grow overflow-y-auto p-4 selection:bg-accent selection:text-accent-foreground">
         <div className="w-full max-w-7xl mx-auto space-y-8">
-          {!hasSearched && (
-             <Card className="border-secondary shadow-lg shadow-secondary/10 mt-8 text-center">
-                <CardHeader>
-                  <CardTitle className="text-xl text-muted-foreground">Welcome to Xpoxial Search</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p>
-                    Enter a query above to begin exploring.
-                  </p>
-                  {recentSearches.length > 0 && <p className="text-sm mt-4 text-muted-foreground">Or select one of your recent searches.</p>}
-                </CardContent>
-              </Card>
-          )}
-
           {isLoading && (
             <div className="flex justify-center items-center p-10">
               <Loader2 className="h-12 w-12 text-primary animate-spin" />
