@@ -139,7 +139,7 @@ export default function RetroInfoInterface() {
       document.body.classList.add('rainbow-mode');
     } else {
       document.body.classList.remove('rainbow-mode');
-    }
+    };
     return () => {
       document.body.classList.remove('rainbow-mode');
     };
@@ -255,8 +255,8 @@ export default function RetroInfoInterface() {
         <form 
             onSubmit={form.handleSubmit(onSubmit)} 
             className={cn(
-                "w-full flex items-start gap-2", 
-                isHeader ? "max-w-xl mx-auto" : "max-w-2xl flex-col sm:flex-row"
+                "w-full flex items-stretch gap-2", 
+                isHeader ? "max-w-xl mx-auto flex-row" : "max-w-2xl flex-col"
             )}
         >
           <Popover open={isPopoverOpen && !isHeader} onOpenChange={setIsPopoverOpen}>
@@ -336,14 +336,13 @@ export default function RetroInfoInterface() {
             disabled={isLoading} 
             className={cn(
                 "bg-accent text-accent-foreground hover:bg-accent/90", 
-                isHeader ? "h-11" : "h-12 w-full sm:w-auto text-lg"
+                isHeader ? "h-11" : "h-12 w-full text-lg"
             )}
             onContextMenu={handleSearchButtonContextMenu}
             title="Left-click to search. Right-click to toggle verbose AI logs."
           >
             {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
-            <span className={cn(isHeader && "hidden sm:inline")}>{isHeader ? 'Search' : ''}</span>
-            {!isHeader && <span>Search</span>}
+            <span className={cn(isHeader && "hidden sm:inline")}>{isHeader ? 'Search' : 'Search'}</span>
             {isVerboseLoggingEnabled && <MessageCircleMore className="absolute top-1 right-1 h-3 w-3 text-background/80" />}
           </Button>
         </form>
@@ -354,15 +353,12 @@ export default function RetroInfoInterface() {
   if (!hasSearched) {
       return (
           <div className="flex flex-col min-h-screen">
-              <header className="flex justify-between items-center p-4 w-full max-w-7xl mx-auto">
-                  <h1 onClick={handleTitleClick} className="text-5xl md:text-7xl font-bold text-primary cursor-pointer select-none invisible">
-                      Xpoxial Search
-                  </h1>
+              <header className="flex justify-end items-center p-4 w-full max-w-7xl mx-auto">
                   <AuthStatus />
               </header>
               <main className="flex-grow flex flex-col items-center justify-center p-4 -mt-24">
                   <div className="w-full max-w-2xl flex flex-col items-center gap-6">
-                      <h1 onClick={handleTitleClick} className="text-5xl md:text-7xl font-bold text-primary cursor-pointer select-none" title="Try clicking me twice!">
+                      <h1 onClick={handleTitleClick} className="text-4xl md:text-5xl font-bold text-primary cursor-pointer select-none" title="Try clicking me twice!">
                           Xpoxial Search
                       </h1>
 
@@ -570,7 +566,5 @@ export default function RetroInfoInterface() {
     </div>
   );
 }
-
-    
 
     
