@@ -223,6 +223,8 @@ export default function RetroInfoInterface() {
     const value = event.target.value;
     if (value.length > 0) {
       setIsPopoverOpen(true);
+    } else {
+      setIsPopoverOpen(false);
     }
   };
 
@@ -248,36 +250,6 @@ export default function RetroInfoInterface() {
   const fetchedImages: ActionImageResultItem[] = searchResult?.searchResults?.images || [];
   const hasSearched = isLoading || searchResult !== null;
 
-  const renderRecentSearchesList = (isPopover = false) => (
-    <div className={cn("flex flex-col gap-2", isPopover && "p-2")}>
-      <div className="flex items-center justify-between px-2 pt-1 pb-2">
-        <span className="text-sm font-medium text-muted-foreground">Recent Searches</span>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleClearHistory}
-          title="Clear search history"
-          className="h-7 w-7 text-muted-foreground hover:text-destructive"
-        >
-          <Trash2 className="h-4 w-4" />
-          <span className="sr-only">Clear search history</span>
-        </Button>
-      </div>
-      {recentSearches.map((searchTerm, index) => (
-        <Button
-          key={index}
-          variant="ghost"
-          size="sm"
-          onClick={() => handleRecentSearchClick(searchTerm)}
-          className="text-sm justify-start hover:bg-accent/10"
-        >
-          <History className="mr-2 h-4 w-4" />
-          {searchTerm}
-        </Button>
-      ))}
-    </div>
-  );
-  
   const searchFormComponent = (isHeader: boolean) => (
       <Form {...form}>
         <form 
@@ -298,13 +270,13 @@ export default function RetroInfoInterface() {
                         <FormControl>
                         <div className="relative">
                             <Input
-                            id="main-query-input"
-                            placeholder="e.g., 'latest advancements in AI'"
-                            {...field}
-                            onChange={handleQueryInputChange}
-                            className={cn("text-base h-12 pr-10", isHeader && "h-11")}
-                            onFocus={() => setIsPopoverOpen(true)}
-                            autoComplete="off"
+                                id={isHeader ? "header-query-input" : "main-query-input"}
+                                placeholder="e.g., 'latest advancements in AI'"
+                                {...field}
+                                onChange={handleQueryInputChange}
+                                className={cn("text-base h-12 pr-10", isHeader && "h-11")}
+                                onFocus={() => setIsPopoverOpen(true)}
+                                autoComplete="off"
                             />
                             {field.value && (
                             <Button 
@@ -312,7 +284,7 @@ export default function RetroInfoInterface() {
                                 variant="ghost" 
                                 size="icon" 
                                 className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground"
-                                onClick={() => {form.setValue('query', ''); setIsPopoverOpen(true);}}
+                                onClick={() => {form.setValue('query', ''); form.setFocus('query'); setIsPopoverOpen(true);}}
                             >
                                 <X className="h-4 w-4"/>
                             </Button>
@@ -326,7 +298,33 @@ export default function RetroInfoInterface() {
             </PopoverAnchor>
             {recentSearches.length > 0 && (
                 <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
-                {renderRecentSearchesList(true)}
+                  <div className="flex flex-col gap-1 p-1">
+                      <div className="flex items-center justify-between px-2 pt-1 pb-2">
+                        <span className="text-sm font-medium text-muted-foreground">Recent Searches</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={handleClearHistory}
+                          title="Clear search history"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Clear search history</span>
+                        </Button>
+                      </div>
+                      {recentSearches.map((searchTerm, index) => (
+                        <Button
+                          key={index}
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRecentSearchClick(searchTerm)}
+                          className="text-sm justify-start hover:bg-accent/10"
+                        >
+                          <History className="mr-2 h-4 w-4" />
+                          {searchTerm}
+                        </Button>
+                      ))}
+                    </div>
                 </PopoverContent>
             )}
           </Popover>
@@ -348,29 +346,87 @@ export default function RetroInfoInterface() {
 
   if (!hasSearched) {
       return (
-          <div className="flex flex-col h-screen">
-            <header className="absolute top-0 right-0 p-4">
-              <AuthStatus />
-            </header>
-            <main className="flex-grow flex flex-col items-center justify-center p-4">
-              <div className="w-full max-w-2xl flex flex-col items-center gap-6">
-                <h1
-                  onClick={handleTitleClick}
-                  className="text-5xl md:text-7xl font-bold text-primary cursor-pointer select-none"
-                  title="Try clicking me twice!"
-                >
-                  Xpoxial Search
-                </h1>
-                {searchFormComponent(false)}
-                {recentSearches.length > 0 && (
-                  <Card className="w-full border-secondary/50 shadow-lg shadow-secondary/10">
-                    <CardContent className="pt-4">
-                      {renderRecentSearchesList(false)}
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            </main>
+          <div className="flex flex-col min-h-screen">
+              <header className="flex justify-between items-center p-4 w-full max-w-7xl mx-auto">
+                  <h1 onClick={handleTitleClick} className="text-5xl md:text-7xl font-bold text-primary cursor-pointer select-none invisible">
+                      Xpoxial Search
+                  </h1>
+                  <AuthStatus />
+              </header>
+              <main className="flex-grow flex flex-col items-center justify-center p-4 -mt-24">
+                  <div className="w-full max-w-2xl flex flex-col items-center gap-6">
+                      <h1 onClick={handleTitleClick} className="text-5xl md:text-7xl font-bold text-primary cursor-pointer select-none" title="Try clicking me twice!">
+                          Xpoxial Search
+                      </h1>
+
+                      <Card className="w-full bg-card/80 border-primary shadow-lg shadow-primary/20 backdrop-blur-sm">
+                          <CardHeader>
+                              <CardTitle className="text-primary text-lg">Search Query</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <Form {...form}>
+                              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                                <FormField
+                                  control={form.control}
+                                  name="query"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormControl>
+                                        <Input
+                                          placeholder="e.g., 'latest advancements in AI'"
+                                          {...field}
+                                          className="h-12 text-base bg-input placeholder:text-muted-foreground/80 border-secondary focus:border-accent"
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <Button type="submit" disabled={isLoading} className="w-full h-12 bg-accent text-accent-foreground text-lg hover:bg-accent/90">
+                                  {isLoading ? (
+                                    <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+                                  ) : (
+                                    <Search className="mr-2 h-5 w-5" />
+                                  )}
+                                  Search
+                                </Button>
+                              </form>
+                            </Form>
+                          </CardContent>
+                      </Card>
+
+                      {recentSearches.length > 0 && (
+                          <Card className="w-full bg-card/80 border-secondary shadow-lg shadow-secondary/10 backdrop-blur-sm">
+                            <CardHeader className="flex-row items-center justify-between">
+                               <CardTitle className="text-secondary text-lg flex items-center gap-2">
+                                  <History className="h-5 w-5" /> Recent Searches
+                               </CardTitle>
+                               <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={handleClearHistory}
+                                  title="Clear search history"
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </CardHeader>
+                            <CardContent className="flex flex-col gap-2">
+                                {recentSearches.map((searchTerm, index) => (
+                                    <Button
+                                      key={index}
+                                      variant="outline"
+                                      onClick={() => handleRecentSearchClick(searchTerm)}
+                                      className="text-sm justify-start bg-input border-secondary hover:border-accent hover:text-accent-foreground"
+                                    >
+                                      {searchTerm}
+                                    </Button>
+                                ))}
+                            </CardContent>
+                          </Card>
+                      )}
+                  </div>
+              </main>
           </div>
       );
   }
@@ -534,3 +590,5 @@ export default function RetroInfoInterface() {
     </div>
   );
 }
+
+    
