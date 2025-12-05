@@ -276,11 +276,9 @@ export default function RetroInfoInterface() {
 
 
   return (
-    <>
-      {/* === Persistent Header / Search Bar === */}
-      {/* This div is no longer sticky; its parent in page.tsx controls the layout */}
-      <header className="flex-shrink-0 w-full bg-background/80 backdrop-blur-sm py-3 border-b border-border/50 z-10">
-        <div className="container mx-auto flex items-center gap-4">
+    <div className="flex flex-col h-screen">
+      <header className="sticky top-0 z-50 w-full bg-background/80 backdrop-blur-sm border-b border-border/50">
+        <div className="container mx-auto flex items-center gap-4 py-3">
           <h1
             onClick={handleTitleClick}
             className="text-2xl font-bold text-primary cursor-pointer select-none hidden sm:block"
@@ -349,7 +347,6 @@ export default function RetroInfoInterface() {
         </div>
       </header>
 
-      {/* === Scrollable Search Results View === */}
       <main className="flex-grow overflow-y-auto p-4 selection:bg-accent selection:text-accent-foreground">
         <div className="w-full max-w-7xl mx-auto space-y-8">
           {!hasSearched && (
@@ -502,6 +499,6 @@ export default function RetroInfoInterface() {
           )}
         </div>
       </main>
-    </>
+    </div>
   );
 }
