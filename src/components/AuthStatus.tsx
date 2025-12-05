@@ -7,11 +7,17 @@ import { supabase, supabaseConfigured } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LogIn, LogOut, UserCircle, AlertTriangle, Mail, KeyRound, UserPlus, Loader2 } from 'lucide-react';
+import { LogIn, LogOut, UserCircle, AlertTriangle, Mail, KeyRound, UserPlus, Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 
 export default function AuthStatus() {
@@ -67,22 +73,29 @@ export default function AuthStatus() {
 
   if (!supabaseConfigured) {
     return (
-      <Card className="border-destructive bg-destructive/10 text-destructive-foreground mt-4 max-w-md mx-auto">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-destructive">
-            <AlertTriangle className="h-5 w-5" /> Supabase Not Configured
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <CardDescription className="text-destructive-foreground/90 text-sm">
-            Please set your <code>NEXT_PUBLIC_SUPABASE_URL</code> and <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in the <code>.env</code> file at the root of your project.
-            <br /><br />
-            After saving the <code>.env</code> file, you <strong className="text-destructive font-bold">MUST restart</strong> your Next.js development server (usually by stopping it with Ctrl+C and running <code>npm run dev</code> again).
-            <br /><br />
-            Also ensure these variables are set in your Netlify deployment environment if applicable.
-          </CardDescription>
-        </CardContent>
-      </Card>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="relative">
+              <Button variant="outline" className="border-destructive text-destructive hover:bg-destructive/10" disabled>
+                  <UserCircle className="mr-2 h-4 w-4" />
+                  Login
+              </Button>
+              <AlertCircle className="absolute -top-1 -right-1 h-4 w-4 text-destructive bg-background rounded-full" />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" align="end" className="max-w-xs bg-destructive text-destructive-foreground border-destructive-foreground/20">
+             <div className="flex items-center gap-2 font-bold mb-2">
+                <AlertTriangle className="h-5 w-5" /> Supabase Not Configured
+             </div>
+             <p className="text-xs">
+                Please set your <code>NEXT_PUBLIC_SUPABASE_URL</code> and <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in the <code>.env</code> file.
+                <br /><br />
+                You <strong className="font-bold">MUST restart</strong> your Next.js dev server after saving the file.
+             </p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
   }
 
@@ -205,3 +218,5 @@ export default function AuthStatus() {
     </Dialog>
   );
 }
+
+  
