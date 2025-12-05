@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { processSearchQuery, type SearchActionResult, type ImageResultItem as ActionImageResultItem, type LocationData, type NewsArticleItem } from "@/app/actions";
-import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, History, Trash2, X, Newspaper } from "lucide-react";
+import { processSearchQuery, getNewsFeed, getStockImages, type SearchActionResult, type ImageResultItem as ActionImageResultItem, type LocationData, type NewsArticleItem } from "@/app/actions";
+import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, History, Trash2, X, Newspaper, Image as ImageIconLucide, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AuthStatus from '@/components/AuthStatus';
 import { cn } from "@/lib/utils";
@@ -23,6 +23,7 @@ const formSchema = z.object({
 });
 
 type FormData = z.infer<typeof formSchema>;
+type ViewType = 'search' | 'news' | 'images';
 
 interface DeviceInfo {
   userAgent?: string;
@@ -43,7 +44,10 @@ const GENERIC_ERROR_MESSAGE = "Contact developer and lodge an issue";
 
 
 export default function RetroInfoInterface() {
+  const [currentView, setCurrentView] = useState<ViewType>('search');
   const [searchResult, setSearchResult] = useState<SearchActionResult | null>(null);
+  const [news, setNews] = useState<NewsArticleItem[]>([]);
+  const [stockImages, setStockImages] = useState<ActionImageResultItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -146,9 +150,10 @@ export default function RetroInfoInterface() {
     };
   }, [rainbowModeActive]);
 
-  async function onSubmit(values: FormData) {
+  async function onSearchSubmit(values: FormData) {
     setIsLoading(true);
     setSearchResult(null);
+    setCurrentView('search');
     setIsPopoverOpen(false);
     const queryToProcess = values.query;
 
@@ -176,7 +181,7 @@ export default function RetroInfoInterface() {
           title: "Processing Issue",
           description: response.error,
         });
-      } else if (!response.answer?.answer && (!response.searchResults?.webResults || response.searchResults.webResults.length === 0) && (!response.searchResults?.images || response.searchResults.images.length === 0) && (!response.newsResults?.articles || response.newsResults.articles.length === 0)) {
+      } else if (!response.answer?.answer && (!response.searchResults?.webResults || response.searchResults.webResults.length === 0) && (!response.searchResults?.images || response.searchResults.images.length === 0)) {
         toast({
           variant: "default",
           title: "No Specific Results",
@@ -201,6 +206,37 @@ export default function RetroInfoInterface() {
     }
   }
 
+  const handleFetchNews = async () => {
+    setIsLoading(true);
+    setCurrentView('news');
+    setNews([]);
+    try {
+      const response = await getNewsFeed({ verbose: isVerboseLoggingEnabled });
+      setNews(response.articles);
+      toast({ title: "News Feed Loaded" });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Failed to load news", description: GENERIC_ERROR_MESSAGE });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFetchImages = async () => {
+    setIsLoading(true);
+    setCurrentView('images');
+    setStockImages([]);
+    try {
+      const response = await getStockImages({ verbose: isVerboseLoggingEnabled });
+      setStockImages(response.images || []);
+      toast({ title: "Stock Images Loaded" });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Failed to load images", description: GENERIC_ERROR_MESSAGE });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
   const handleSearchButtonContextMenu = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     setIsVerboseLoggingEnabled(prev => {
@@ -216,7 +252,7 @@ export default function RetroInfoInterface() {
   const handleRecentSearchClick = (searchTerm: string) => {
     form.setValue("query", searchTerm);
     setIsPopoverOpen(false);
-    form.handleSubmit(onSubmit)();
+    form.handleSubmit(onSearchSubmit)();
   };
   
   const handleQueryInputChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -247,21 +283,25 @@ export default function RetroInfoInterface() {
     }
   };
 
+  const handleBackToSearch = () => {
+    setCurrentView('search');
+    setSearchResult(null); // Clear previous results
+  };
+
 
   const fetchedImages: ActionImageResultItem[] = searchResult?.searchResults?.images || [];
-  const fetchedNews: NewsArticleItem[] = searchResult?.newsResults?.articles || [];
   const hasSearched = isLoading || searchResult !== null;
 
   const SearchFormComponent = ({ isHeader }: { isHeader: boolean }) => (
       <Form {...form}>
         <form 
-            onSubmit={form.handleSubmit(onSubmit)} 
+            onSubmit={form.handleSubmit(onSearchSubmit)} 
             className={cn(
                 "w-full flex items-stretch gap-2", 
                 isHeader ? "max-w-xl mx-auto flex-row" : "max-w-2xl flex-col"
             )}
         >
-          <Popover open={isPopoverOpen && !isHeader} onOpenChange={setIsPopoverOpen}>
+          <Popover open={isPopoverOpen && !isHeader && recentSearches.length > 0} onOpenChange={setIsPopoverOpen}>
             <PopoverAnchor asChild>
                 <FormField
                     control={form.control}
@@ -343,7 +383,7 @@ export default function RetroInfoInterface() {
             onContextMenu={handleSearchButtonContextMenu}
             title="Left-click to search. Right-click to toggle verbose AI logs."
           >
-            {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
+            {isLoading && currentView === 'search' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
             <span className={cn(isHeader && "hidden sm:inline")}>{isHeader ? 'Search' : 'Search'}</span>
             {isVerboseLoggingEnabled && <MessageCircleMore className="absolute top-1 right-1 h-3 w-3 text-background/80" />}
           </Button>
@@ -352,7 +392,7 @@ export default function RetroInfoInterface() {
   );
 
 
-  if (!hasSearched) {
+  if (!hasSearched && currentView === 'search') {
       return (
           <div className="flex flex-col min-h-screen">
               <header className="flex justify-end items-center p-4 w-full max-w-7xl mx-auto">
@@ -370,6 +410,19 @@ export default function RetroInfoInterface() {
                           </CardHeader>
                           <CardContent>
                             <SearchFormComponent isHeader={false} />
+                          </CardContent>
+                      </Card>
+                      
+                       <Card className="w-full bg-card/80 border-secondary shadow-lg shadow-secondary/10 backdrop-blur-sm">
+                          <CardContent className="pt-6 flex flex-col sm:flex-row gap-4">
+                              <Button onClick={handleFetchNews} disabled={isLoading} className="w-full h-12 text-lg" variant="outline">
+                                  {isLoading && currentView === 'news' ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Newspaper className="mr-2 h-5 w-5" />}
+                                  News Feed
+                              </Button>
+                              <Button onClick={handleFetchImages} disabled={isLoading} className="w-full h-12 text-lg" variant="outline">
+                                  {isLoading && currentView === 'images' ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ImageIconLucide className="mr-2 h-5 w-5" />}
+                                  Stock Images
+                              </Button>
                           </CardContent>
                       </Card>
 
@@ -420,8 +473,13 @@ export default function RetroInfoInterface() {
           >
             Xpoxial Search
           </h1>
+          {currentView !== 'search' && (
+            <Button variant="outline" onClick={handleBackToSearch}>
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back to Search
+            </Button>
+          )}
           <div className="flex-grow">
-            <SearchFormComponent isHeader={true} />
+            {currentView === 'search' && <SearchFormComponent isHeader={true} />}
           </div>
           <AuthStatus />
         </div>
@@ -432,11 +490,13 @@ export default function RetroInfoInterface() {
           {isLoading && (
             <div className="flex justify-center items-center p-10">
               <Loader2 className="h-12 w-12 text-primary animate-spin" />
-              <p className="ml-4 text-xl text-muted-foreground">Searching the digital cosmos...</p>
+              <p className="ml-4 text-xl text-muted-foreground">
+                {currentView === 'news' ? 'Fetching news feed...' : currentView === 'images' ? 'Loading stock images...' : 'Searching the digital cosmos...'}
+              </p>
             </div>
           )}
 
-          {searchResult && searchResult.error && !isLoading && (
+          {currentView === 'search' && searchResult && searchResult.error && !isLoading && (
             <Card className="border-destructive shadow-lg shadow-destructive/20">
               <CardHeader>
                 <CardTitle className="text-destructive flex items-center gap-2">
@@ -449,12 +509,11 @@ export default function RetroInfoInterface() {
             </Card>
           )}
 
-          {searchResult && !searchResult.error && !isLoading && (
+          {currentView === 'search' && searchResult && !searchResult.error && !isLoading && (
             <>
               {(!searchResult.answer?.answer &&
                (!searchResult.searchResults?.webResults || searchResult.searchResults.webResults.length === 0) &&
-               fetchedImages.length === 0 &&
-               fetchedNews.length === 0
+               fetchedImages.length === 0
               ) ? (
                 <Card className="border-primary shadow-lg shadow-primary/20">
                   <CardHeader>
@@ -476,39 +535,6 @@ export default function RetroInfoInterface() {
                         </CardHeader>
                         <CardContent>
                           <p className="text-base leading-relaxed whitespace-pre-wrap">{searchResult.answer.answer}</p>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                    {fetchedNews.length > 0 && (
-                      <Card className="border-primary shadow-lg shadow-primary/20">
-                        <CardHeader>
-                          <CardTitle className="text-2xl flex items-center gap-2"><Newspaper className="h-6 w-6 text-accent"/> News</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                           {fetchedNews.map((article, index) => (
-                            <Card key={index} className="bg-card/50 border-border/50 hover:border-accent transition-colors duration-150">
-                               <CardContent className="pt-6">
-                                <div className="flex-grow">
-                                  <CardDescription className="text-xs text-muted-foreground mb-2">
-                                      {article.source} &bull; {formatDistanceToNow(new Date(article.publishedAt), { addSuffix: true })}
-                                  </CardDescription>
-                                  <CardTitle className="text-lg mb-1">
-                                    <a
-                                      href={article.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-primary hover:text-accent hover:underline flex items-center gap-1 group"
-                                    >
-                                      {article.title}
-                                      <ExternalLink className="h-4 w-4 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
-                                    </a>
-                                  </CardTitle>
-                                  <p className="text-sm leading-relaxed mt-2">{article.description}</p>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
                         </CardContent>
                       </Card>
                     )}
@@ -596,6 +622,71 @@ export default function RetroInfoInterface() {
                 </div>
               )}
             </>
+          )}
+
+          {currentView === 'news' && !isLoading && (
+              <Card className="border-primary shadow-lg shadow-primary/20">
+                <CardHeader>
+                  <CardTitle className="text-2xl flex items-center gap-2"><Newspaper className="h-6 w-6 text-accent"/> News Feed</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    {news.map((article, index) => (
+                    <Card key={index} className="bg-card/50 border-border/50 hover:border-accent transition-colors duration-150">
+                        <CardContent className="pt-6">
+                        <div className="flex-grow">
+                            <CardDescription className="text-xs text-muted-foreground mb-2">
+                                {article.source} &bull; {formatDistanceToNow(new Date(article.publishedAt), { addSuffix: true })}
+                            </CardDescription>
+                            <CardTitle className="text-lg mb-1">
+                            <a
+                                href={article.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:text-accent hover:underline flex items-center gap-1 group"
+                            >
+                                {article.title}
+                                <ExternalLink className="h-4 w-4 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
+                            </a>
+                            </CardTitle>
+                            {article.description && <p className="text-sm leading-relaxed mt-2">{article.description}</p>}
+                        </div>
+                        </CardContent>
+                    </Card>
+                    ))}
+                </CardContent>
+              </Card>
+          )}
+
+          {currentView === 'images' && !isLoading && (
+              <Card className="border-secondary shadow-lg shadow-secondary/20">
+                <CardHeader>
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    <ImageIcon className="h-5 w-5 text-accent"/> Stock Images
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {stockImages.map((img, index) => (
+                        <div key={index} className="group">
+                          <a href={img.sourceUrl || '#'} target="_blank" rel="noopener noreferrer" className="block">
+                            <div className="relative w-full aspect-square mb-1">
+                              <Image
+                                src={img.imageUrl}
+                                alt={img.altText || `Stock image ${index + 1}`}
+                                fill
+                                style={{ objectFit: 'cover' }}
+                                className="rounded-md border border-border shadow-md group-hover:opacity-80 transition-opacity"
+                                data-ai-hint={img.altText?.split(' ').slice(0, 2).join(' ') || 'photo'}
+                                priority={index < 10}
+                                sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
+                              />
+                            </div>
+                          </a>
+                        </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
           )}
         </div>
       </main>

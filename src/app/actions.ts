@@ -7,7 +7,7 @@ import { z } from "zod";
 import { generateAnswer, type GenerateAnswerInput as FlowGenerateAnswerInput, type GenerateAnswerOutput } from "@/ai/flows/generate-answer-flow";
 import { generateSearchResults as fetchWebAndImageResults, type PerformWebSearchInput as FlowPerformWebSearchInput, type PerformWebSearchOutput } from "@/ai/flows/generate-search-results-flow";
 import { sortSearchResults, type SortSearchResultsInput as FlowSortSearchResultsInput, type SortSearchResultsOutput } from "@/ai/flows/sort-search-results-flow"; 
-import { generateNewsResults, type PerformNewsSearchInput as FlowPerformNewsSearchInput, type PerformNewsSearchOutput } from "@/ai/flows/generate-news-results-flow";
+import { generateNewsResults, type PerformNewsSearchInput as FlowPerformNewsSearchInput } from "@/ai/flows/generate-news-results-flow";
 
 const GENERIC_ERROR_MESSAGE = "Contact developer and lodge an issue";
 
@@ -52,7 +52,7 @@ export type GenerateSearchResultsOutput = z.infer<typeof GenerateSearchResultsOu
 // --- Schemas and Types for generate-news-results-flow.ts ---
 const NewsArticleItemSchema = z.object({
   title: z.string().describe('The headline or title of the news article.'),
-  description: z.string().describe('A brief description of the news article.'),
+  description: z.string().nullable().describe('A brief description of the news article.'),
   url: z.string().url().describe('The direct URL to the news article.'),
   source: z.string().describe('The name of the news source (e.g., "The New York Times").'),
   publishedAt: z.string().describe('The publication date of the article in ISO 8601 format.'),
@@ -63,7 +63,7 @@ const GenerateNewsResultsOutputSchema = z.object({
   articles: z.array(NewsArticleItemSchema).describe('An array of news articles relevant to the query.'),
 });
 export type GenerateNewsResultsOutput = z.infer<typeof GenerateNewsResultsOutputSchema>;
-// --- End Schemas and Types for generate-news-results-flow.ts ---
+// --- End Schemas and Types from generate-news-results-flow.ts ---
 
 
 // --- Schemas for sortSearchResults input and output validation ---
@@ -116,7 +116,6 @@ export async function processSearchQuery(
   const validatedInput = processSearchQueryInputSchema.safeParse(input);
 
   if (!validatedInput.success) {
-    // This is a validation error, which is a bit different, but we'll still use the generic message.
     console.error("Input validation error:", validatedInput.error.errors);
     return { error: GENERIC_ERROR_MESSAGE };
   }
@@ -130,10 +129,9 @@ export async function processSearchQuery(
     const commonArgs = { query, verbose }; 
     const answerArgs = { ...commonArgs, recentSearches }; 
     
-    const [answerResult, searchResultsCombined, newsResultsCombined] = await Promise.allSettled([
+    const [answerResult, searchResultsCombined] = await Promise.allSettled([
       generateAnswer(answerArgs as FlowGenerateAnswerInput), 
       fetchWebAndImageResults(commonArgs as FlowPerformWebSearchInput),
-      generateNewsResults(commonArgs as FlowPerformNewsSearchInput)
     ]);
 
     const answer = answerResult.status === 'fulfilled' ? answerResult.value : undefined;
@@ -184,18 +182,6 @@ export async function processSearchQuery(
       }
     }
 
-    let parsedNewsResults: GenerateNewsResultsOutput | undefined;
-    if (newsResultsCombined.status === 'fulfilled') {
-        const validation = GenerateNewsResultsOutputSchema.safeParse(newsResultsCombined.value);
-        if (validation.success) {
-            parsedNewsResults = validation.data;
-            if (verbose) console.log('[VERBOSE ACTION] News results fetching and parsing successful.');
-        } else {
-            console.error("News results format error (actions.ts):", validation.error.flatten());
-            if (verbose) console.log("[VERBOSE ACTION] News results format error. Raw data:", newsResultsCombined.value);
-        }
-    }
-
     let hasErrors = false;
     if (answerResult.status === 'rejected') {
       console.error("Error generating answer:", answerResult.reason);
@@ -209,19 +195,12 @@ export async function processSearchQuery(
     } else if (searchResultsCombined.status === 'fulfilled' && !GenerateSearchResultsOutputSchema.safeParse(searchResultsCombined.value).success) {
       hasErrors = true;
     }
-     if (newsResultsCombined.status === 'rejected') {
-      console.error("Error generating news results:", newsResultsCombined.reason);
-      hasErrors = true;
-      if (verbose) console.log('[VERBOSE ACTION] News results generation rejected:', newsResultsCombined.reason);
-    }
-
-    
+     
     if (hasErrors) {
       if (verbose) console.log('[VERBOSE ACTION] One or more operations failed. Returning generic error.');
       return { 
         answer, // Return any partial data we got
         searchResults: parsedSearchResults,
-        newsResults: parsedNewsResults,
         error: GENERIC_ERROR_MESSAGE
       };
     }
@@ -230,12 +209,49 @@ export async function processSearchQuery(
     return {
       answer,
       searchResults: parsedSearchResults,
-      newsResults: parsedNewsResults,
     };
 
   } catch (e) {
     console.error("Outer error processing search query:", e);
     if (verbose) console.log('[VERBOSE ACTION] Outer catch block error in processSearchQuery:', e);
     return { error: GENERIC_ERROR_MESSAGE };
+  }
+}
+
+export async function getNewsFeed(
+  input: Omit<FlowPerformNewsSearchInput, 'query'>
+): Promise<GenerateNewsResultsOutput> {
+  try {
+    // We can use a generic query for a general news feed.
+    const news = await generateNewsResults({ query: 'latest top headlines', verbose: input.verbose });
+    const validation = GenerateNewsResultsOutputSchema.safeParse(news);
+    if (!validation.success) {
+      console.error("News feed format error (actions.ts):", validation.error.flatten());
+      throw new Error("News feed format error.");
+    }
+    return validation.data;
+  } catch (error) {
+    console.error("Error fetching news feed:", error);
+    // Return empty articles array on error to prevent UI crash
+    return { articles: [] };
+  }
+}
+
+export async function getStockImages(
+  input: Omit<FlowPerformWebSearchInput, 'query'>
+): Promise<GenerateSearchResultsOutput> {
+   try {
+    // Use a generic query for Pexels
+    const images = await fetchWebAndImageResults({ query: 'nature', verbose: input.verbose });
+    const validation = GenerateSearchResultsOutputSchema.safeParse(images);
+     if (!validation.success) {
+      console.error("Stock images format error (actions.ts):", validation.error.flatten());
+      throw new Error("Stock images format error.");
+    }
+    // We only care about images for this action
+    return { webResults: [], images: validation.data.images };
+  } catch (error) {
+    console.error("Error fetching stock images:", error);
+    return { webResults: [], images: [] };
   }
 }

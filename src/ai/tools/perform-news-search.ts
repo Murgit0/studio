@@ -22,7 +22,7 @@ export type PerformNewsSearchInput = z.infer<typeof PerformNewsSearchInputSchema
 // Schema for a single news article item
 const NewsArticleItemSchema = z.object({
   title: z.string().describe('The headline or title of the news article.'),
-  description: z.string().describe('A brief description of the news article.'),
+  description: z.string().nullable().describe('A brief description of the news article.'),
   url: z.string().url().describe('The direct URL to the news article.'),
   source: z.string().describe('The name of the news source (e.g., "The New York Times").'),
   publishedAt: z.string().describe('The publication date of the article in ISO 8601 format.'),
@@ -79,7 +79,7 @@ async function performNewsSearchToolHandler(input: PerformNewsSearchInput): Prom
 
     try {
       // Using NewsAPI.org's 'everything' endpoint.
-      const newsApiUrl = `https://newsapi.org/v2/everything?q=${encodeURIComponent(input.query)}&apiKey=${newsApiKey}&pageSize=${MAX_ARTICLES}&sortBy=relevancy`;
+      const newsApiUrl = `https://newsapi.org/v2/everything?q=${encodeURIComponent(input.query)}&apiKey=${newsApiKey}&pageSize=${MAX_ARTICLES}&sortBy=publishedAt`;
       if (input.verbose) console.log(`[VERBOSE TOOL] NewsAPI URL (attempt ${attempts}): ${newsApiUrl}`);
       
       const response = await fetch(newsApiUrl);
@@ -96,10 +96,10 @@ async function performNewsSearchToolHandler(input: PerformNewsSearchInput): Prom
 
         if (newsData.articles && newsData.articles.length > 0) {
           articles = newsData.articles
-            .filter((item: any) => item.title && item.description && item.url && item.source?.name && item.publishedAt && item.title !== '[Removed]')
+            .filter((item: any) => item.title && item.url && item.source?.name && item.publishedAt && item.title !== '[Removed]')
             .map((item: any): NewsArticleItem => ({
               title: item.title,
-              description: item.description,
+              description: item.description || null,
               url: item.url,
               source: item.source.name,
               publishedAt: item.publishedAt,
@@ -131,7 +131,7 @@ async function performNewsSearchToolHandler(input: PerformNewsSearchInput): Prom
 function getMockNews(query: string): PerformNewsSearchOutput {
   const safeQuery = query || "mock";
   return {
-    articles: Array.from({ length: 3 }).map((_, i) => ({
+    articles: Array.from({ length: 10 }).map((_, i) => ({
       title: `Mock News ${i + 1}: ${safeQuery}`,
       description: `This is mock news article ${i+1}. To get real news, please provide a valid NEWS_API_KEY in your environment variables.`,
       url: `https://example.com/mock-news${i+1}`,
