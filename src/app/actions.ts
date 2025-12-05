@@ -8,6 +8,7 @@ import { generateAnswer, type GenerateAnswerInput as FlowGenerateAnswerInput, ty
 import { generateSearchResults as fetchWebAndImageResults, type PerformWebSearchInput as FlowPerformWebSearchInput, type PerformWebSearchOutput } from "@/ai/flows/generate-search-results-flow";
 import { sortSearchResults, type SortSearchResultsInput as FlowSortSearchResultsInput, type SortSearchResultsOutput } from "@/ai/flows/sort-search-results-flow"; 
 import { generateNewsResults, type PerformNewsSearchInput as FlowPerformNewsSearchInput } from "@/ai/flows/generate-news-results-flow";
+import { filterArticles, type FilterArticlesInput } from "@/ai/flows/filter-articles-flow";
 
 const GENERIC_ERROR_MESSAGE = "Contact developer and lodge an issue";
 
@@ -224,14 +225,45 @@ export async function getNewsFeed(
   try {
     // We can use a generic query for a general news feed.
     const news = await generateNewsResults({ query: 'latest top headlines', verbose: input.verbose });
-    const validation = GenerateNewsResultsOutputSchema.safeParse(news);
-    if (!validation.success) {
-      console.error("News feed format error (actions.ts):", validation.error.flatten());
+    
+    // Validate the initial fetch
+    const initialValidation = GenerateNewsResultsOutputSchema.safeParse(news);
+    if (!initialValidation.success) {
+      console.error("News feed initial format error (actions.ts):", initialValidation.error.flatten());
       throw new Error("News feed format error.");
     }
-    return validation.data;
+    
+    if (initialValidation.data.articles.length === 0) {
+      return { articles: [] };
+    }
+
+    if (input.verbose) {
+        console.log(`[VERBOSE ACTION] getNewsFeed: Fetched ${initialValidation.data.articles.length} articles. Now attempting to filter out financial news.`);
+    }
+    
+    // Filter out financial news using the AI flow
+    const filterInput: FilterArticlesInput = {
+        articles: initialValidation.data.articles,
+        categoryToExclude: 'finance',
+        verbose: input.verbose,
+    };
+    const filteredResult = await filterArticles(filterInput);
+    
+    const finalValidation = GenerateNewsResultsOutputSchema.safeParse({ articles: filteredResult.filteredArticles });
+
+    if (!finalValidation.success) {
+        console.error("News feed filtered format error (actions.ts):", finalValidation.error.flatten());
+        throw new Error("Filtered news feed format error.");
+    }
+    
+    if (input.verbose) {
+        console.log(`[VERBOSE ACTION] getNewsFeed: Filtering complete. ${finalValidation.data.articles.length} articles remaining.`);
+    }
+
+    return finalValidation.data;
+
   } catch (error) {
-    console.error("Error fetching news feed:", error);
+    console.error("Error fetching or filtering news feed:", error);
     // Return empty articles array on error to prevent UI crash
     return { articles: [] };
   }
