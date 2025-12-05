@@ -10,12 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { processSearchQuery, type SearchActionResult, type ImageResultItem as ActionImageResultItem, type LocationData } from "@/app/actions";
-import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, History, Trash2, X } from "lucide-react";
+import { processSearchQuery, type SearchActionResult, type ImageResultItem as ActionImageResultItem, type LocationData, type NewsArticleItem } from "@/app/actions";
+import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, History, Trash2, X, Newspaper } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AuthStatus from '@/components/AuthStatus';
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger, PopoverAnchor } from "@/components/ui/popover";
+import { formatDistanceToNow } from 'date-fns';
 
 const formSchema = z.object({
   query: z.string().min(3, { message: "Query must be at least 3 characters." }),
@@ -175,7 +176,7 @@ export default function RetroInfoInterface() {
           title: "Processing Issue",
           description: response.error,
         });
-      } else if (!response.answer?.answer && (!response.searchResults?.webResults || response.searchResults.webResults.length === 0) && (!response.searchResults?.images || response.searchResults.images.length === 0)) {
+      } else if (!response.answer?.answer && (!response.searchResults?.webResults || response.searchResults.webResults.length === 0) && (!response.searchResults?.images || response.searchResults.images.length === 0) && (!response.newsResults?.articles || response.newsResults.articles.length === 0)) {
         toast({
           variant: "default",
           title: "No Specific Results",
@@ -248,6 +249,7 @@ export default function RetroInfoInterface() {
 
 
   const fetchedImages: ActionImageResultItem[] = searchResult?.searchResults?.images || [];
+  const fetchedNews: NewsArticleItem[] = searchResult?.newsResults?.articles || [];
   const hasSearched = isLoading || searchResult !== null;
 
   const SearchFormComponent = ({ isHeader }: { isHeader: boolean }) => (
@@ -336,7 +338,7 @@ export default function RetroInfoInterface() {
             disabled={isLoading} 
             className={cn(
                 "bg-accent text-accent-foreground hover:bg-accent/90", 
-                isHeader ? "h-11" : "h-12 w-full text-lg"
+                isHeader ? "h-11" : "h-12 w-full text-lg mt-4"
             )}
             onContextMenu={handleSearchButtonContextMenu}
             title="Left-click to search. Right-click to toggle verbose AI logs."
@@ -451,7 +453,8 @@ export default function RetroInfoInterface() {
             <>
               {(!searchResult.answer?.answer &&
                (!searchResult.searchResults?.webResults || searchResult.searchResults.webResults.length === 0) &&
-               fetchedImages.length === 0
+               fetchedImages.length === 0 &&
+               fetchedNews.length === 0
               ) ? (
                 <Card className="border-primary shadow-lg shadow-primary/20">
                   <CardHeader>
@@ -473,6 +476,39 @@ export default function RetroInfoInterface() {
                         </CardHeader>
                         <CardContent>
                           <p className="text-base leading-relaxed whitespace-pre-wrap">{searchResult.answer.answer}</p>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {fetchedNews.length > 0 && (
+                      <Card className="border-primary shadow-lg shadow-primary/20">
+                        <CardHeader>
+                          <CardTitle className="text-2xl flex items-center gap-2"><Newspaper className="h-6 w-6 text-accent"/> News</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                           {fetchedNews.map((article, index) => (
+                            <Card key={index} className="bg-card/50 border-border/50 hover:border-accent transition-colors duration-150">
+                               <CardContent className="pt-6">
+                                <div className="flex-grow">
+                                  <CardDescription className="text-xs text-muted-foreground mb-2">
+                                      {article.source} &bull; {formatDistanceToNow(new Date(article.publishedAt), { addSuffix: true })}
+                                  </CardDescription>
+                                  <CardTitle className="text-lg mb-1">
+                                    <a
+                                      href={article.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-primary hover:text-accent hover:underline flex items-center gap-1 group"
+                                    >
+                                      {article.title}
+                                      <ExternalLink className="h-4 w-4 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
+                                    </a>
+                                  </CardTitle>
+                                  <p className="text-sm leading-relaxed mt-2">{article.description}</p>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
                         </CardContent>
                       </Card>
                     )}
@@ -566,5 +602,3 @@ export default function RetroInfoInterface() {
     </div>
   );
 }
-
-    

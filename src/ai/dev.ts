@@ -1,3 +1,4 @@
+
 import { config } from 'dotenv';
 config();
 
@@ -7,7 +8,9 @@ config();
 import '@/ai/flows/generate-answer-flow.ts';
 import '@/ai/flows/generate-search-results-flow.ts';
 import '@/ai/flows/sort-search-results-flow.ts';
+import '@/ai/flows/generate-news-results-flow.ts';
 
 
 // Import your tools here
 import '@/ai/tools/perform-web-search.ts';
+import '@/ai/tools/perform-news-search.ts';
