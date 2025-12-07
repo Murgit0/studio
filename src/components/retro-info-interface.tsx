@@ -11,9 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { processSearchQuery, getNewsFeed, getStockImages, type SearchActionResult, type ImageResultItem as ActionImageResultItem, type LocationData, type NewsArticleItem } from "@/app/actions";
-import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, History, Trash2, X, Newspaper, Image as ImageIconLucide, ArrowLeft } from "lucide-react";
+import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, History, Trash2, X, Newspaper, Image as ImageIconLucide, ArrowLeft, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AuthStatus from '@/components/AuthStatus';
+import Chatbot from '@/components/Chatbot';
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger, PopoverAnchor } from "@/components/ui/popover";
 import { formatDistanceToNow } from 'date-fns';
@@ -23,7 +24,7 @@ const formSchema = z.object({
 });
 
 type FormData = z.infer<typeof formSchema>;
-type ViewType = 'search' | 'news' | 'images';
+type ViewType = 'search' | 'news' | 'images' | 'chatbot';
 
 interface DeviceInfo {
   userAgent?: string;
@@ -235,6 +236,11 @@ export default function RetroInfoInterface() {
       setIsLoading(false);
     }
   };
+  
+  const handleChatbotView = () => {
+    setCurrentView('chatbot');
+    setIsLoading(false); // No initial loading for chatbot view
+  };
 
 
   const handleSearchButtonContextMenu = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -415,13 +421,19 @@ export default function RetroInfoInterface() {
                       
                        <Card className="w-full bg-card/80 border-secondary shadow-lg shadow-secondary/10 backdrop-blur-sm">
                           <CardContent className="pt-6 flex flex-col sm:flex-row gap-4">
-                              <Button onClick={handleFetchNews} disabled={isLoading} className="w-full h-12 text-lg" variant="outline">
+                              <Button onClick={handleFetchNews} disabled={isLoading} className="flex-1 h-12 text-lg" variant="outline">
                                   {isLoading && currentView === 'news' ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Newspaper className="mr-2 h-5 w-5" />}
                                   News Feed
                               </Button>
-                              <Button onClick={handleFetchImages} disabled={isLoading} className="w-full h-12 text-lg" variant="outline">
+                              <Button onClick={handleFetchImages} disabled={isLoading} className="flex-1 h-12 text-lg" variant="outline">
                                   {isLoading && currentView === 'images' ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ImageIconLucide className="mr-2 h-5 w-5" />}
                                   Stock Images
+                              </Button>
+                          </CardContent>
+                           <CardContent className="pt-0 flex justify-center">
+                              <Button onClick={handleChatbotView} disabled={isLoading} className="w-full sm:w-auto h-12 text-lg px-8" variant="outline">
+                                  {isLoading && currentView === 'chatbot' ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <MessageSquare className="mr-2 h-5 w-5" />}
+                                  Chatbot
                               </Button>
                           </CardContent>
                       </Card>
@@ -486,7 +498,7 @@ export default function RetroInfoInterface() {
       </header>
 
       <main className="flex-grow overflow-y-auto p-4 selection:bg-accent selection:text-accent-foreground">
-        <div className="w-full max-w-7xl mx-auto space-y-8">
+        <div className="w-full max-w-7xl mx-auto space-y-8 h-full">
           {isLoading && (
             <div className="flex justify-center items-center p-10">
               <Loader2 className="h-12 w-12 text-primary animate-spin" />
@@ -687,6 +699,12 @@ export default function RetroInfoInterface() {
                   </div>
                 </CardContent>
               </Card>
+          )}
+
+          {currentView === 'chatbot' && !isLoading && (
+            <div className="h-full">
+              <Chatbot isVerboseLoggingEnabled={isVerboseLoggingEnabled} />
+            </div>
           )}
         </div>
       </main>

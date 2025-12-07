@@ -9,8 +9,11 @@ import { generateSearchResults as fetchWebAndImageResults, type PerformWebSearch
 import { sortSearchResults, type SortSearchResultsInput as FlowSortSearchResultsInput, type SortSearchResultsOutput } from "@/ai/flows/sort-search-results-flow"; 
 import { generateNewsResults, type PerformNewsSearchInput as FlowPerformNewsSearchInput } from "@/ai/flows/generate-news-results-flow";
 import { filterArticles, type FilterArticlesInput } from "@/ai/flows/filter-articles-flow";
+import { generateChatResponse, type GenerateChatResponseInput, type GenerateChatResponseOutput, type ChatMessage } from "@/ai/flows/generate-chat-response-flow";
 
 const GENERIC_ERROR_MESSAGE = "Contact developer and lodge an issue";
+
+export type { ChatMessage };
 
 // --- Schemas and Types for generate-answer-flow ---
 const ActionGenerateAnswerInputSchema = z.object({
@@ -288,4 +291,17 @@ export async function getStockImages(
   }
 }
 
-    
+export async function sendChatMessage(
+  input: GenerateChatResponseInput
+): Promise<GenerateChatResponseOutput> {
+  try {
+    if (input.verbose) {
+      console.log(`[VERBOSE ACTION] sendChatMessage called with message: "${input.message}"`);
+    }
+    const response = await generateChatResponse(input);
+    return response;
+  } catch (error) {
+    console.error("Error in sendChatMessage action:", error);
+    return { response: GENERIC_ERROR_MESSAGE };
+  }
+}

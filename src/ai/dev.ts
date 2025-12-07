@@ -10,6 +10,7 @@ import '@/ai/flows/generate-search-results-flow.ts';
 import '@/ai/flows/sort-search-results-flow.ts';
 import '@/ai/flows/generate-news-results-flow.ts';
 import '@/ai/flows/filter-articles-flow.ts';
+import '@/ai/flows/generate-chat-response-flow.ts';
 
 
 // Import your tools here
