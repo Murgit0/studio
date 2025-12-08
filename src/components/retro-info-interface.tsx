@@ -865,12 +865,13 @@ export default function RetroInfoInterface() {
                               return (
                                 <div key={index} className="group">
                                   <a href={img.sourceUrl || '#'} target="_blank" rel="noopener noreferrer" className="block">
-                                    <div className="relative w-full aspect-square mb-1">
+                                    <div className="relative w-full">
                                       <Image
                                         src={img.imageUrl}
                                         alt={img.altText || `Image ${index + 1} for ${form.getValues("query")}`}
-                                        fill
-                                        style={{ objectFit: 'cover' }}
+                                        layout="responsive"
+                                        width={500}
+                                        height={500}
                                         className="rounded-md border border-border shadow-md group-hover:opacity-80 transition-opacity"
                                         data-ai-hint={hint}
                                         priority={index < 4}
@@ -966,3 +967,5 @@ export default function RetroInfoInterface() {
     </div>
   );
 }
+
+    
