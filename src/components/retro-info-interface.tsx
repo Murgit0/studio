@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, ChangeEvent, FormEvent } from "react";
@@ -10,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { processSearchQuery, performAdvancedSearch, getNewsFeed, getStockImages, type SearchActionResult, type ImageResultItem as ActionImageResultItem, type LocationData, type NewsArticleItem } from "@/app/actions";
-import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, History, Trash2, X, Newspaper, Image as ImageIconLucide, ArrowLeft, MessageSquare, Rocket } from "lucide-react";
+import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, History, Trash2, X, Newspaper, Image as ImageIconLucide, ArrowLeft, MessageSquare, Rocket, Video, HelpCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AuthStatus from '@/components/AuthStatus';
 import Chatbot from '@/components/Chatbot';
@@ -18,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDistanceToNow } from 'date-fns';
+import type { PerformAdvancedSearchOutput } from "@/ai/tools/perform-advanced-search";
 
 const formSchema = z.object({
   query: z.string().min(3, { message: "Query must be at least 3 characters." }),
@@ -543,96 +545,109 @@ export default function RetroInfoInterface() {
   const renderAdvancedSearchResults = () => {
     if (!searchResult?.advancedSearchResults) return null;
 
-    const engines = Object.keys(searchResult.advancedSearchResults) as (keyof typeof searchResult.advancedSearchResults)[];
+    const data: PerformAdvancedSearchOutput = searchResult.advancedSearchResults;
+    const engines = Object.keys(data) as (keyof typeof data)[];
+
+    const allWebResults = engines.flatMap(engine => 
+      data[engine]?.webResults?.map(res => ({ ...res, engine })) || []
+    ).filter(res => res.title && res.link);
+
+    const allImageResults = engines.flatMap(engine => 
+        data[engine]?.imageResults?.map(res => ({ ...res, engine })) || []
+    ).filter(res => res.thumbnail && res.original);
+
+    const allVideoResults = engines.flatMap(engine => 
+        data[engine]?.videoResults?.map(res => ({ ...res, engine })) || []
+    ).filter(res => res.thumbnail && res.link);
+
+    const allRelatedQuestions = engines.flatMap(engine => 
+        data[engine]?.relatedQuestions?.map(res => ({ ...res, engine })) || []
+    ).filter(res => res.question);
+    
+    const tabs = [
+        { name: 'Web', icon: Search, data: allWebResults },
+        { name: 'Images', icon: ImageIcon, data: allImageResults },
+        { name: 'Videos', icon: Video, data: allVideoResults },
+        { name: 'Related Questions', icon: HelpCircle, data: allRelatedQuestions },
+    ];
     
     return (
-      <Tabs defaultValue={engines.find(engine => searchResult.advancedSearchResults?.[engine] && !searchResult.advancedSearchResults[engine]?.error) || engines[0]}>
-        <TabsList className="grid w-full grid-cols-4">
-          {engines.map((engine) => (
-            <TabsTrigger key={engine} value={engine} disabled={!searchResult.advancedSearchResults?.[engine]}>
-              {engine.charAt(0).toUpperCase() + engine.slice(1)}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        {engines.map((engine) => {
-          const results = searchResult.advancedSearchResults?.[engine];
-          if (!results) return null;
-          return (
-            <TabsContent key={engine} value={engine}>
-              <Card>
-                <CardHeader>
-                  <CardTitle>{engine.charAt(0).toUpperCase() + engine.slice(1)} Results</CardTitle>
-                  {results.error && <CardDescription className="text-destructive pt-2">{results.error}</CardDescription>}
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  
-                  {results.webResults && results.webResults.length > 0 && (
-                    <div>
-                      <h3 className="text-lg font-semibold mb-4 text-accent border-b border-accent/20 pb-2">Web Results</h3>
-                      <div className="space-y-4">
-                        {results.webResults.map((item, index) => (
-                          <div key={`web-${engine}-${index}`}>
-                            <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-lg text-primary hover:underline">{item.title}</a>
-                            <p className="text-sm text-muted-foreground">{item.snippet}</p>
-                            <p className="text-xs text-green-400/70">{item.link}</p>
-                          </div>
+        <Card>
+            <CardHeader>
+                <CardTitle>Advanced Search Results</CardTitle>
+                <CardDescription>Aggregated results from multiple search engines.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Tabs defaultValue="Web" className="w-full">
+                    <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
+                        {tabs.map(tab => (
+                            <TabsTrigger key={tab.name} value={tab.name} disabled={tab.data.length === 0}>
+                                <tab.icon className="mr-2 h-4 w-4" />
+                                {tab.name} ({tab.data.length})
+                            </TabsTrigger>
                         ))}
-                      </div>
-                    </div>
-                  )}
+                    </TabsList>
 
-                  {results.relatedQuestions && results.relatedQuestions.length > 0 && (
-                     <div>
-                      <h3 className="text-lg font-semibold mb-4 text-accent border-b border-accent/20 pb-2">Related Questions</h3>
-                      <div className="space-y-4">
-                        {results.relatedQuestions.map((item, index) => (
-                           <div key={`related-${engine}-${index}`}>
-                            <p className="font-medium">{item.question}</p>
-                            <p className="text-sm text-muted-foreground">{item.snippet}</p>
-                            {item.link && <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-xs text-primary/80 hover:underline">{item.title}</a>}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                    <TabsContent value="Web">
+                        <div className="space-y-6 pt-4">
+                            {allWebResults.map((item, index) => (
+                                <div key={`web-${index}-${item.engine}`}>
+                                    <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-lg text-primary hover:underline">{item.title}</a>
+                                    <p className="text-sm text-muted-foreground mt-1">{item.snippet}</p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-xs text-green-400/70 break-all">{item.link}</span>
+                                        <span className="text-xs text-white bg-secondary px-1.5 py-0.5 rounded">{item.engine}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </TabsContent>
 
-                  {results.imageResults && results.imageResults.length > 0 && (
-                     <div>
-                      <h3 className="text-lg font-semibold mb-4 text-accent border-b border-accent/20 pb-2">Image Results</h3>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                        {results.imageResults.map((item, index) => (
-                          <a key={`img-${engine}-${index}`} href={item.original} target="_blank" rel="noopener noreferrer" className="group block">
-                            <Image src={item.thumbnail!} alt={item.title!} width={150} height={150} className="rounded-md object-cover aspect-square group-hover:opacity-80 transition-opacity border-2 border-transparent group-hover:border-accent"/>
-                            <p className="text-xs text-muted-foreground truncate mt-1 group-hover:text-accent">{item.title}</p>
-                           </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                    <TabsContent value="Images">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 pt-4">
+                            {allImageResults.map((item, index) => (
+                                <a key={`img-${index}-${item.engine}`} href={item.original} target="_blank" rel="noopener noreferrer" className="group block relative">
+                                    <Image src={item.thumbnail!} alt={item.title!} width={150} height={150} className="rounded-md object-cover aspect-square group-hover:opacity-80 transition-opacity border-2 border-transparent group-hover:border-accent"/>
+                                    <p className="text-xs text-muted-foreground truncate mt-1 group-hover:text-accent">{item.title}</p>
+                                    <span className="absolute top-1 left-1 text-xs text-white bg-black/60 px-1.5 py-0.5 rounded">{item.engine}</span>
+                                </a>
+                            ))}
+                        </div>
+                    </TabsContent>
 
-                   {results.videoResults && results.videoResults.length > 0 && (
-                     <div>
-                      <h3 className="text-lg font-semibold mb-4 text-accent border-b border-accent/20 pb-2">Video Results</h3>
-                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {results.videoResults.map((item, index) => (
-                          <a key={`video-${engine}-${index}`} href={item.link} target="_blank" rel="noopener noreferrer" className="group block">
-                            <div className="relative">
-                               <Image src={item.thumbnail!} alt={item.title!} width={300} height={170} className="rounded-md object-cover aspect-video group-hover:opacity-80 transition-opacity border-2 border-transparent group-hover:border-accent"/>
-                               {item.duration && <span className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded-sm">{item.duration}</span>}
-                            </div>
-                            <p className="text-sm font-medium text-muted-foreground truncate mt-2 group-hover:text-accent">{item.title}</p>
-                           </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          )
-        })}
-      </Tabs>
-    )
+                    <TabsContent value="Videos">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pt-4">
+                            {allVideoResults.map((item, index) => (
+                                <a key={`video-${index}-${item.engine}`} href={item.link} target="_blank" rel="noopener noreferrer" className="group block relative">
+                                    <div className="relative">
+                                        <Image src={item.thumbnail!} alt={item.title!} width={300} height={170} className="rounded-md object-cover aspect-video group-hover:opacity-80 transition-opacity border-2 border-transparent group-hover:border-accent"/>
+                                        {item.duration && <span className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded-sm">{item.duration}</span>}
+                                        <span className="absolute top-1 left-1 text-xs text-white bg-black/60 px-1.5 py-0.5 rounded">{item.engine}</span>
+                                    </div>
+                                    <p className="text-sm font-medium text-muted-foreground truncate mt-2 group-hover:text-accent">{item.title}</p>
+                                </a>
+                            ))}
+                        </div>
+                    </TabsContent>
+
+                    <TabsContent value="Related Questions">
+                        <div className="space-y-6 pt-4">
+                            {allRelatedQuestions.map((item, index) => (
+                                <div key={`related-${index}-${item.engine}`} className="p-4 border rounded-lg">
+                                    <p className="font-medium flex justify-between">
+                                        {item.question}
+                                        <span className="text-xs text-white bg-secondary px-1.5 py-0.5 rounded">{item.engine}</span>
+                                    </p>
+                                    {item.snippet && <p className="text-sm text-muted-foreground mt-2">{item.snippet}</p>}
+                                    {item.link && <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-xs text-primary/80 hover:underline mt-2 block">{item.title}</a>}
+                                </div>
+                            ))}
+                        </div>
+                    </TabsContent>
+                </Tabs>
+            </CardContent>
+        </Card>
+    );
   };
 
   return (
@@ -876,5 +891,3 @@ export default function RetroInfoInterface() {
     </div>
   );
 }
-
-    
