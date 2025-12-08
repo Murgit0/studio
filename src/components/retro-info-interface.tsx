@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { processSearchQuery, performAdvancedSearch, getNewsFeed, getStockImages, type SearchActionResult, type ImageResultItem as ActionImageResultItem, type LocationData, type NewsArticleItem } from "@/app/actions";
-import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, History, Trash2, X, Newspaper, Image as ImageIconLucide, ArrowLeft, MessageSquare, Rocket, Video, HelpCircle } from "lucide-react";
+import { processSearchQuery, performAdvancedSearch, getNewsFeed, getStockImages, summarizeAdvancedResultsAction, type SearchActionResult, type ImageResultItem as ActionImageResultItem, type LocationData, type NewsArticleItem } from "@/app/actions";
+import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, History, Trash2, X, Newspaper, Image as ImageIconLucide, ArrowLeft, MessageSquare, Rocket, Video, HelpCircle, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AuthStatus from '@/components/AuthStatus';
 import Chatbot from '@/components/Chatbot';
@@ -20,6 +20,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDistanceToNow } from 'date-fns';
 import type { PerformAdvancedSearchOutput } from "@/ai/tools/perform-advanced-search";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
+import { ScrollArea } from "./ui/scroll-area";
 
 const formSchema = z.object({
   query: z.string().min(3, { message: "Query must be at least 3 characters." }),
@@ -52,6 +54,9 @@ export default function RetroInfoInterface() {
   const [news, setNews] = useState<NewsArticleItem[]>([]);
   const [stockImages, setStockImages] = useState<ActionImageResultItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+
   const { toast } = useToast();
 
   const [titleClickCount, setTitleClickCount] = useState(0);
@@ -215,6 +220,7 @@ export default function RetroInfoInterface() {
   async function onAdvancedSearchSubmit(values: FormData) {
     setIsLoading(true);
     setSearchResult(null);
+    setAiSummary(null);
     setCurrentView('advanced-search');
     setIsPopoverOpen(false);
 
@@ -442,7 +448,7 @@ export default function RetroInfoInterface() {
               onContextMenu={handleSearchButtonContextMenu}
               title="Left-click to search. Right-click to toggle verbose AI logs."
             >
-              {isLoading && (currentView === 'search' || currentView === 'advanced-search') ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
+              {isLoading && currentView === 'search' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
               <span className={cn(isHeader && "hidden sm:inline")}>Search</span>
               {isVerboseLoggingEnabled && <MessageCircleMore className="absolute top-1 right-1 h-3 w-3 text-background/80" />}
             </Button>
@@ -457,7 +463,7 @@ export default function RetroInfoInterface() {
               )}
               title="Perform an advanced multi-engine search"
             >
-              <Rocket className="h-5 w-5" />
+              {isLoading && currentView === 'advanced-search' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Rocket className="h-5 w-5" />}
               <span>Advanced</span>
             </Button>
           </div>
@@ -571,11 +577,71 @@ export default function RetroInfoInterface() {
         { name: 'Related Questions', icon: HelpCircle, data: allRelatedQuestions },
     ];
     
+    const handleSummarize = async () => {
+      setIsSummarizing(true);
+      setAiSummary(null);
+      try {
+        const response = await summarizeAdvancedResultsAction({
+          query: form.getValues('query'),
+          webResults: allWebResults,
+          imageResults: allImageResults,
+          videoResults: allVideoResults,
+          relatedQuestions: allRelatedQuestions,
+          verbose: isVerboseLoggingEnabled,
+        });
+
+        if (response.summary) {
+          setAiSummary(response.summary);
+        } else {
+          throw new Error("Failed to get summary from AI.");
+        }
+      } catch (error) {
+        console.error("Error summarizing results:", error);
+        toast({
+          variant: "destructive",
+          title: "Summarization Failed",
+          description: GENERIC_ERROR_MESSAGE,
+        });
+      } finally {
+        setIsSummarizing(false);
+      }
+    };
+    
     return (
         <Card>
-            <CardHeader>
-                <CardTitle>Advanced Search Results</CardTitle>
-                <CardDescription>Aggregated results from multiple search engines.</CardDescription>
+            <CardHeader className="flex-row items-center justify-between">
+                <div>
+                    <CardTitle>Advanced Search Results</CardTitle>
+                    <CardDescription>Aggregated results from multiple search engines.</CardDescription>
+                </div>
+                <Dialog>
+                    <DialogTrigger asChild>
+                        <Button onClick={handleSummarize} disabled={isSummarizing}>
+                            {isSummarizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                            Summarize with AI
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+                        <DialogHeader>
+                            <DialogTitle className="text-2xl">AI Summary</DialogTitle>
+                            <DialogDescription>
+                                A comprehensive summary of the search results for "{form.getValues('query')}".
+                            </DialogDescription>
+                        </DialogHeader>
+                        <ScrollArea className="flex-grow">
+                            <div className="prose prose-invert prose-p:text-base prose-li:text-base prose-h2:text-xl prose-h3:text-lg whitespace-pre-wrap p-1">
+                                {aiSummary ? (
+                                    <p>{aiSummary}</p>
+                                ) : (
+                                    <div className="flex items-center justify-center h-full">
+                                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                        <p className="ml-4 text-muted-foreground">Generating summary...</p>
+                                    </div>
+                                )}
+                            </div>
+                        </ScrollArea>
+                    </DialogContent>
+                </Dialog>
             </CardHeader>
             <CardContent>
                 <Tabs defaultValue="Web" className="w-full">
@@ -604,10 +670,12 @@ export default function RetroInfoInterface() {
                     </TabsContent>
 
                     <TabsContent value="Images">
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 pt-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 pt-4">
                             {allImageResults.map((item, index) => (
-                                <a key={`img-${index}-${item.engine}`} href={item.original} target="_blank" rel="noopener noreferrer" className="group block relative">
-                                    <Image src={item.thumbnail!} alt={item.title!} width={150} height={150} className="rounded-md object-cover aspect-square group-hover:opacity-80 transition-opacity border-2 border-transparent group-hover:border-accent"/>
+                                <a key={`img-${index}-${item.engine}`} href={item.link} target="_blank" rel="noopener noreferrer" className="group block relative">
+                                    <div className="relative w-full" style={{ aspectRatio: '1080 / 1280' }}>
+                                        <Image src={item.thumbnail!} alt={item.title!} layout="fill" objectFit="cover" className="rounded-md group-hover:opacity-80 transition-opacity border-2 border-transparent group-hover:border-accent"/>
+                                    </div>
                                     <p className="text-xs text-muted-foreground truncate mt-1 group-hover:text-accent">{item.title}</p>
                                     <span className="absolute top-1 left-1 text-xs text-white bg-black/60 px-1.5 py-0.5 rounded">{item.engine}</span>
                                 </a>
@@ -631,15 +699,15 @@ export default function RetroInfoInterface() {
                     </TabsContent>
 
                     <TabsContent value="Related Questions">
-                        <div className="space-y-6 pt-4">
+                        <div className="space-y-4 pt-4">
                             {allRelatedQuestions.map((item, index) => (
-                                <div key={`related-${index}-${item.engine}`} className="p-4 border rounded-lg">
-                                    <p className="font-medium flex justify-between">
+                                <div key={`related-${index}-${item.engine}`} className="p-4 border rounded-lg bg-card/50">
+                                    <p className="font-semibold text-lg flex justify-between">
                                         {item.question}
                                         <span className="text-xs text-white bg-secondary px-1.5 py-0.5 rounded">{item.engine}</span>
                                     </p>
-                                    {item.snippet && <p className="text-sm text-muted-foreground mt-2">{item.snippet}</p>}
-                                    {item.link && <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-xs text-primary/80 hover:underline mt-2 block">{item.title}</a>}
+                                    {item.snippet && <p className="text-base text-muted-foreground mt-2">{item.snippet}</p>}
+                                    {item.link && <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-sm text-primary/80 hover:underline mt-2 block">{item.title}</a>}
                                 </div>
                             ))}
                         </div>

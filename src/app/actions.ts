@@ -12,6 +12,7 @@ import { filterArticles, type FilterArticlesInput } from "@/ai/flows/filter-arti
 import { generateChatResponse, type GenerateChatResponseInput, type GenerateChatResponseOutput, type ChatMessage } from "@/ai/flows/generate-chat-response-flow";
 import { generateAdvancedSearchResults } from "@/ai/flows/generate-advanced-search-results-flow";
 import type { PerformAdvancedSearchInput, PerformAdvancedSearchOutput } from "@/ai/tools/perform-advanced-search";
+import { summarizeAdvancedResults, type SummarizeAdvancedResultsInput } from "@/ai/flows/summarize-advanced-search-flow";
 
 
 const GENERIC_ERROR_MESSAGE = "Contact developer and lodge an issue";
@@ -325,5 +326,20 @@ export async function sendChatMessage(
   } catch (error) {
     console.error("Error in sendChatMessage action:", error);
     return { response: GENERIC_ERROR_MESSAGE };
+  }
+}
+
+export async function summarizeAdvancedResultsAction(
+  input: SummarizeAdvancedResultsInput
+) {
+  try {
+    if (input.verbose) {
+      console.log(`[VERBOSE ACTION] summarizeAdvancedResultsAction called for query: "${input.query}"`);
+    }
+    const response = await summarizeAdvancedResults(input);
+    return response;
+  } catch (error) {
+    console.error("Error in summarizeAdvancedResultsAction:", error);
+    return { summary: `An error occurred while generating the summary: ${GENERIC_ERROR_MESSAGE}` };
   }
 }
