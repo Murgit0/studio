@@ -542,7 +542,7 @@ export default function RetroInfoInterface() {
     const engines = Object.keys(searchResult.advancedSearchResults) as (keyof typeof searchResult.advancedSearchResults)[];
     
     return (
-      <Tabs defaultValue={engines[0]}>
+      <Tabs defaultValue={engines.find(engine => searchResult.advancedSearchResults?.[engine] && !searchResult.advancedSearchResults[engine]?.error) || engines[0]}>
         <TabsList className="grid w-full grid-cols-4">
           {engines.map((engine) => (
             <TabsTrigger key={engine} value={engine} disabled={!searchResult.advancedSearchResults?.[engine]}>
@@ -558,35 +558,70 @@ export default function RetroInfoInterface() {
               <Card>
                 <CardHeader>
                   <CardTitle>{engine.charAt(0).toUpperCase() + engine.slice(1)} Results</CardTitle>
+                  {results.error && <CardDescription className="text-destructive pt-2">{results.error}</CardDescription>}
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {results.error && <p className="text-destructive">{results.error}</p>}
+                  
                   {results.webResults && results.webResults.length > 0 && (
                     <div>
-                      <h3 className="text-lg font-semibold mb-2">Web Results</h3>
+                      <h3 className="text-lg font-semibold mb-4 text-accent border-b border-accent/20 pb-2">Web Results</h3>
                       <div className="space-y-4">
                         {results.webResults.map((item, index) => (
                           <div key={`web-${engine}-${index}`}>
-                            <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{item.title}</a>
+                            <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-lg text-primary hover:underline">{item.title}</a>
                             <p className="text-sm text-muted-foreground">{item.snippet}</p>
+                            <p className="text-xs text-green-400/70">{item.link}</p>
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
+
+                  {results.relatedQuestions && results.relatedQuestions.length > 0 && (
+                     <div>
+                      <h3 className="text-lg font-semibold mb-4 text-accent border-b border-accent/20 pb-2">Related Questions</h3>
+                      <div className="space-y-4">
+                        {results.relatedQuestions.map((item, index) => (
+                           <div key={`related-${engine}-${index}`}>
+                            <p className="font-medium">{item.question}</p>
+                            <p className="text-sm text-muted-foreground">{item.snippet}</p>
+                            {item.link && <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-xs text-primary/80 hover:underline">{item.title}</a>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {results.imageResults && results.imageResults.length > 0 && (
                      <div>
-                      <h3 className="text-lg font-semibold mb-2">Image Results</h3>
-                      <div className="grid grid-cols-3 gap-2">
+                      <h3 className="text-lg font-semibold mb-4 text-accent border-b border-accent/20 pb-2">Image Results</h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                         {results.imageResults.map((item, index) => (
-                          <a key={`img-${engine}-${index}`} href={item.original} target="_blank" rel="noopener noreferrer">
-                            <Image src={item.thumbnail!} alt={item.title!} width={150} height={150} className="rounded-md"/>
+                          <a key={`img-${engine}-${index}`} href={item.original} target="_blank" rel="noopener noreferrer" className="group block">
+                            <Image src={item.thumbnail!} alt={item.title!} width={150} height={150} className="rounded-md object-cover aspect-square group-hover:opacity-80 transition-opacity border-2 border-transparent group-hover:border-accent"/>
+                            <p className="text-xs text-muted-foreground truncate mt-1 group-hover:text-accent">{item.title}</p>
                            </a>
                         ))}
                       </div>
                     </div>
                   )}
-                  {/* Render video and related questions similarly */}
+
+                   {results.videoResults && results.videoResults.length > 0 && (
+                     <div>
+                      <h3 className="text-lg font-semibold mb-4 text-accent border-b border-accent/20 pb-2">Video Results</h3>
+                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {results.videoResults.map((item, index) => (
+                          <a key={`video-${engine}-${index}`} href={item.link} target="_blank" rel="noopener noreferrer" className="group block">
+                            <div className="relative">
+                               <Image src={item.thumbnail!} alt={item.title!} width={300} height={170} className="rounded-md object-cover aspect-video group-hover:opacity-80 transition-opacity border-2 border-transparent group-hover:border-accent"/>
+                               {item.duration && <span className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded-sm">{item.duration}</span>}
+                            </div>
+                            <p className="text-sm font-medium text-muted-foreground truncate mt-2 group-hover:text-accent">{item.title}</p>
+                           </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
