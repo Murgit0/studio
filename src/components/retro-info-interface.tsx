@@ -10,13 +10,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { processSearchQuery, getNewsFeed, getStockImages, type SearchActionResult, type ImageResultItem as ActionImageResultItem, type LocationData, type NewsArticleItem } from "@/app/actions";
-import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, History, Trash2, X, Newspaper, Image as ImageIconLucide, ArrowLeft, MessageSquare } from "lucide-react";
+import { processSearchQuery, performAdvancedSearch, getNewsFeed, getStockImages, type SearchActionResult, type ImageResultItem as ActionImageResultItem, type LocationData, type NewsArticleItem } from "@/app/actions";
+import { Search, Loader2, AlertTriangle, Brain, ListTree, ExternalLink, ImageIcon, MessageCircleMore, History, Trash2, X, Newspaper, Image as ImageIconLucide, ArrowLeft, MessageSquare, Rocket } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import AuthStatus from '@/components/AuthStatus';
 import Chatbot from '@/components/Chatbot';
 import { cn } from "@/lib/utils";
-import { Popover, PopoverContent, PopoverTrigger, PopoverAnchor } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDistanceToNow } from 'date-fns';
 
 const formSchema = z.object({
@@ -24,7 +25,7 @@ const formSchema = z.object({
 });
 
 type FormData = z.infer<typeof formSchema>;
-type ViewType = 'search' | 'news' | 'images' | 'chatbot';
+type ViewType = 'search' | 'news' | 'images' | 'chatbot' | 'advanced-search';
 
 interface DeviceInfo {
   userAgent?: string;
@@ -150,29 +151,32 @@ export default function RetroInfoInterface() {
       document.body.classList.remove('rainbow-mode');
     };
   }, [rainbowModeActive]);
-
-  async function onSearchSubmit(values: FormData) {
-    setIsLoading(true);
-    setSearchResult(null);
-    setCurrentView('search');
-    setIsPopoverOpen(false);
-    const queryToProcess = values.query;
-
-    const updatedRecentSearches = [queryToProcess, ...recentSearches.filter(rs => rs !== queryToProcess)].slice(0, MAX_RECENT_SEARCHES);
+  
+  const addQueryToRecent = (query: string) => {
+    const updatedRecentSearches = [query, ...recentSearches.filter(rs => rs !== query)].slice(0, MAX_RECENT_SEARCHES);
     setRecentSearches(updatedRecentSearches);
     try {
       localStorage.setItem(LOCAL_STORAGE_RECENT_SEARCHES_KEY, JSON.stringify(updatedRecentSearches));
     } catch (error) {
       console.error("Failed to save recent searches to localStorage:", error);
     }
+  }
+
+  async function onSearchSubmit(values: FormData) {
+    setIsLoading(true);
+    setSearchResult(null);
+    setCurrentView('search');
+    setIsPopoverOpen(false);
+    
+    addQueryToRecent(values.query);
 
     try {
       const response = await processSearchQuery({ 
-        query: queryToProcess,
+        query: values.query,
         verbose: isVerboseLoggingEnabled,
         location: locationData, 
         deviceInfo: deviceInfo || undefined,
-        recentSearches: updatedRecentSearches,
+        recentSearches: recentSearches,
       });
       setSearchResult(response);
 
@@ -206,6 +210,47 @@ export default function RetroInfoInterface() {
       setIsLoading(false);
     }
   }
+
+  async function onAdvancedSearchSubmit(values: FormData) {
+    setIsLoading(true);
+    setSearchResult(null);
+    setCurrentView('advanced-search');
+    setIsPopoverOpen(false);
+
+    addQueryToRecent(values.query);
+
+    try {
+      const response = await performAdvancedSearch({
+        query: values.query,
+        verbose: isVerboseLoggingEnabled,
+      });
+      setSearchResult(response);
+
+      if (response.error) {
+        toast({
+          variant: "destructive",
+          title: "Advanced Search Error",
+          description: response.error,
+        });
+      } else {
+        toast({
+          title: "Advanced Search Complete",
+          description: "Your advanced query has been processed.",
+        });
+      }
+    } catch (error) {
+      console.error("Advanced search submission error:", error);
+      setSearchResult({ error: GENERIC_ERROR_MESSAGE });
+      toast({
+        variant: "destructive",
+        title: "Advanced Search Error",
+        description: GENERIC_ERROR_MESSAGE,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
 
   const handleFetchNews = async () => {
     setIsLoading(true);
@@ -379,26 +424,43 @@ export default function RetroInfoInterface() {
                 </PopoverContent>
             )}
           </Popover>
-          <Button 
-            type="submit" 
-            disabled={isLoading} 
-            className={cn(
-                "bg-accent text-accent-foreground hover:bg-accent/90", 
-                isHeader ? "h-11" : "h-12 w-full text-lg mt-4"
-            )}
-            onContextMenu={handleSearchButtonContextMenu}
-            title="Left-click to search. Right-click to toggle verbose AI logs."
-          >
-            {isLoading && currentView === 'search' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
-            <span className={cn(isHeader && "hidden sm:inline")}>{isHeader ? 'Search' : 'Search'}</span>
-            {isVerboseLoggingEnabled && <MessageCircleMore className="absolute top-1 right-1 h-3 w-3 text-background/80" />}
-          </Button>
+          <div className={cn("flex gap-2", isHeader ? "flex-row" : "flex-col sm:flex-row mt-4")}>
+            <Button 
+              type="submit" 
+              disabled={isLoading} 
+              className={cn(
+                  "bg-accent text-accent-foreground hover:bg-accent/90", 
+                  isHeader ? "h-11" : "h-12 text-lg",
+                  "flex-1"
+              )}
+              onContextMenu={handleSearchButtonContextMenu}
+              title="Left-click to search. Right-click to toggle verbose AI logs."
+            >
+              {isLoading && (currentView === 'search' || currentView === 'advanced-search') ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
+              <span className={cn(isHeader && "hidden sm:inline")}>Search</span>
+              {isVerboseLoggingEnabled && <MessageCircleMore className="absolute top-1 right-1 h-3 w-3 text-background/80" />}
+            </Button>
+            <Button
+              type="button"
+              onClick={form.handleSubmit(onAdvancedSearchSubmit)}
+              disabled={isLoading}
+              className={cn(
+                  "bg-primary text-primary-foreground hover:bg-primary/90",
+                  isHeader ? "h-11" : "h-12 text-lg",
+                  "flex-1"
+              )}
+              title="Perform an advanced multi-engine search"
+            >
+              <Rocket className="h-5 w-5" />
+              <span>Advanced</span>
+            </Button>
+          </div>
         </form>
       </Form>
   );
 
 
-  if (!hasSearched && currentView === 'search') {
+  if (!hasSearched && (currentView === 'search' || currentView === 'advanced-search')) {
       return (
           <div className="flex flex-col min-h-screen">
               <header className="flex justify-end items-center p-4 w-full max-w-7xl mx-auto">
@@ -474,6 +536,66 @@ export default function RetroInfoInterface() {
       );
   }
 
+  const renderAdvancedSearchResults = () => {
+    if (!searchResult?.advancedSearchResults) return null;
+
+    const engines = Object.keys(searchResult.advancedSearchResults) as (keyof typeof searchResult.advancedSearchResults)[];
+    
+    return (
+      <Tabs defaultValue={engines[0]}>
+        <TabsList className="grid w-full grid-cols-4">
+          {engines.map((engine) => (
+            <TabsTrigger key={engine} value={engine} disabled={!searchResult.advancedSearchResults?.[engine]}>
+              {engine.charAt(0).toUpperCase() + engine.slice(1)}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        {engines.map((engine) => {
+          const results = searchResult.advancedSearchResults?.[engine];
+          if (!results) return null;
+          return (
+            <TabsContent key={engine} value={engine}>
+              <Card>
+                <CardHeader>
+                  <CardTitle>{engine.charAt(0).toUpperCase() + engine.slice(1)} Results</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {results.error && <p className="text-destructive">{results.error}</p>}
+                  {results.webResults && results.webResults.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold mb-2">Web Results</h3>
+                      <div className="space-y-4">
+                        {results.webResults.map((item, index) => (
+                          <div key={`web-${engine}-${index}`}>
+                            <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{item.title}</a>
+                            <p className="text-sm text-muted-foreground">{item.snippet}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {results.imageResults && results.imageResults.length > 0 && (
+                     <div>
+                      <h3 className="text-lg font-semibold mb-2">Image Results</h3>
+                      <div className="grid grid-cols-3 gap-2">
+                        {results.imageResults.map((item, index) => (
+                          <a key={`img-${engine}-${index}`} href={item.original} target="_blank" rel="noopener noreferrer">
+                            <Image src={item.thumbnail!} alt={item.title!} width={150} height={150} className="rounded-md"/>
+                           </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Render video and related questions similarly */}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )
+        })}
+      </Tabs>
+    )
+  };
+
   return (
     <div className="flex flex-col h-screen">
       <header className="sticky top-0 z-50 w-full bg-background/80 backdrop-blur-sm border-b border-border/50">
@@ -485,13 +607,13 @@ export default function RetroInfoInterface() {
           >
             Xpoxial Search
           </h1>
-          {currentView !== 'search' && (
+          {(currentView !== 'search' && currentView !== 'advanced-search') && (
             <Button variant="outline" onClick={handleBackToSearch}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back to Search
             </Button>
           )}
           <div className="flex-grow">
-            {currentView === 'search' && <SearchFormComponent isHeader={true} />}
+            {(currentView === 'search' || currentView === 'advanced-search') && <SearchFormComponent isHeader={true} />}
           </div>
           <AuthStatus />
         </div>
@@ -508,7 +630,11 @@ export default function RetroInfoInterface() {
             </div>
           )}
 
-          {currentView === 'search' && searchResult && searchResult.error && !isLoading && (
+          {currentView === 'advanced-search' && searchResult && !isLoading && (
+            renderAdvancedSearchResults()
+          )}
+
+          {(currentView === 'search' || currentView === 'advanced-search') && searchResult && searchResult.error && !isLoading && (
             <Card className="border-destructive shadow-lg shadow-destructive/20">
               <CardHeader>
                 <CardTitle className="text-destructive flex items-center gap-2">

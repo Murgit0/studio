@@ -11,8 +11,10 @@ import '@/ai/flows/sort-search-results-flow.ts';
 import '@/ai/flows/generate-news-results-flow.ts';
 import '@/ai/flows/filter-articles-flow.ts';
 import '@/ai/flows/generate-chat-response-flow.ts';
+import '@/ai/flows/generate-advanced-search-results-flow.ts';
 
 
 // Import your tools here
 import '@/ai/tools/perform-web-search.ts';
 import '@/ai/tools/perform-news-search.ts';
+import '@/ai/tools/perform-advanced-search.ts';

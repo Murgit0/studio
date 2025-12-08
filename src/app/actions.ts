@@ -10,6 +10,9 @@ import { sortSearchResults, type SortSearchResultsInput as FlowSortSearchResults
 import { generateNewsResults, type PerformNewsSearchInput as FlowPerformNewsSearchInput } from "@/ai/flows/generate-news-results-flow";
 import { filterArticles, type FilterArticlesInput } from "@/ai/flows/filter-articles-flow";
 import { generateChatResponse, type GenerateChatResponseInput, type GenerateChatResponseOutput, type ChatMessage } from "@/ai/flows/generate-chat-response-flow";
+import { generateAdvancedSearchResults } from "@/ai/flows/generate-advanced-search-results-flow";
+import type { PerformAdvancedSearchInput, PerformAdvancedSearchOutput } from "@/ai/tools/perform-advanced-search";
+
 
 const GENERIC_ERROR_MESSAGE = "Contact developer and lodge an issue";
 
@@ -111,6 +114,7 @@ export interface SearchActionResult {
   answer?: GenerateAnswerOutput;
   searchResults?: GenerateSearchResultsOutput;
   newsResults?: GenerateNewsResultsOutput;
+  advancedSearchResults?: PerformAdvancedSearchOutput;
   error?: string;
 }
 
@@ -218,6 +222,24 @@ export async function processSearchQuery(
   } catch (e) {
     console.error("Outer error processing search query:", e);
     if (verbose) console.log('[VERBOSE ACTION] Outer catch block error in processSearchQuery:', e);
+    return { error: GENERIC_ERROR_MESSAGE };
+  }
+}
+
+export async function performAdvancedSearch(
+  input: PerformAdvancedSearchInput
+): Promise<SearchActionResult> {
+  if (input.verbose) {
+    console.log(`[VERBOSE ACTION] performAdvancedSearch called with query: "${input.query}"`);
+  }
+  try {
+    const advancedSearchResults = await generateAdvancedSearchResults(input);
+    return {
+      advancedSearchResults
+    };
+  } catch (e) {
+    console.error("Outer error processing advanced search query:", e);
+    if (input.verbose) console.log('[VERBOSE ACTION] Outer catch block error in performAdvancedSearch:', e);
     return { error: GENERIC_ERROR_MESSAGE };
   }
 }
