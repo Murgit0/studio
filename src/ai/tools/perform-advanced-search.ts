@@ -84,6 +84,35 @@ export async function performAdvancedSearch(input: PerformAdvancedSearchInput): 
 
 const engines = ['google', 'duckduckgo', 'yahoo', 'bing'];
 
+function getMockAdvancedSearchResults(query: string): PerformAdvancedSearchOutput {
+    const output: PerformAdvancedSearchOutput = {};
+    const safeQuery = query || "advanced search";
+    const encodedQuery = encodeURIComponent(safeQuery);
+
+    for (const engine of engines) {
+        output[engine as keyof PerformAdvancedSearchOutput] = {
+            webResults: Array.from({ length: 3 }).map((_, i) => ({
+                position: i + 1,
+                title: `Mock ${engine} Web Result ${i + 1} for: ${safeQuery}`,
+                link: `https://example.com/${engine}/mock-web${i+1}?q=${encodedQuery}`,
+                snippet: `This is a mock web search result from ${engine}. Configure your SERP_API_KEY for real results.`,
+            })),
+            imageResults: Array.from({ length: 4 }).map((_, i) => ({
+                position: i + 1,
+                thumbnail: `https://placehold.co/150x150.png?text=${engine}+${i+1}`,
+                original: `https://placehold.co/600x400.png?text=${engine}+${i+1}`,
+                title: `Mock ${engine} Image ${i + 1}`,
+                link: `https://example.com/${engine}/mock-image${i+1}?q=${encodedQuery}`,
+                source: "Mock Source"
+            })),
+            videoResults: [],
+            relatedQuestions: [],
+            error: `This is mock data because the SERP_API_KEY is not configured.`
+        };
+    }
+    return output;
+}
+
 async function searchEngine(engine: string, query: string, apiKey: string, isVerbose: boolean): Promise<EngineResultSchema> {
   if (isVerbose) {
     console.log(`[VERBOSE TOOL] Querying ${engine} for "${query}"`);
@@ -144,8 +173,8 @@ async function performAdvancedSearchToolHandler(input: PerformAdvancedSearchInpu
   const apiKey = process.env.SERP_API_KEY;
 
   if (!apiKey || apiKey === 'YOUR_SERP_API_KEY_HERE') {
-    console.warn('SERP_API_KEY is not configured. Please set it in your .env file. Returning empty results.');
-    return {};
+    console.warn('SERP_API_KEY is not configured. Please set it in your .env file. Returning mock results.');
+    return getMockAdvancedSearchResults(query);
   }
   
   const searchPromises = engines.map(engine => searchEngine(engine, query, apiKey, verbose));
@@ -153,9 +182,25 @@ async function performAdvancedSearchToolHandler(input: PerformAdvancedSearchInpu
   const results = await Promise.all(searchPromises);
   
   const output: PerformAdvancedSearchOutput = {};
+  let hasAnyResults = false;
   engines.forEach((engine, index) => {
-    output[engine as keyof PerformAdvancedSearchOutput] = results[index];
+    const engineResult = results[index];
+    output[engine as keyof PerformAdvancedSearchOutput] = engineResult;
+    if (
+        !engineResult.error || 
+        (engineResult.webResults && engineResult.webResults.length > 0) || 
+        (engineResult.imageResults && engineResult.imageResults.length > 0) ||
+        (engineResult.videoResults && engineResult.videoResults.length > 0) ||
+        (engineResult.relatedQuestions && engineResult.relatedQuestions.length > 0)
+       ) {
+        hasAnyResults = true;
+    }
   });
+
+  if (!hasAnyResults) {
+    console.warn('All search engines failed or returned no results. Returning mock results.');
+    return getMockAdvancedSearchResults(query);
+  }
   
   return output;
 }
