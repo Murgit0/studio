@@ -20,7 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDistanceToNow } from 'date-fns';
 import type { PerformAdvancedSearchOutput } from "@/ai/tools/perform-advanced-search";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./ui/dialog";
 import { ScrollArea } from "./ui/scroll-area";
 
 const formSchema = z.object({
@@ -56,6 +56,7 @@ export default function RetroInfoInterface() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [isSummaryDialogOpen, setIsSummaryDialogOpen] = useState(false);
 
   const { toast } = useToast();
 
@@ -578,6 +579,7 @@ export default function RetroInfoInterface() {
     ];
     
     const handleSummarize = async () => {
+      setIsSummaryDialogOpen(true);
       setIsSummarizing(true);
       setAiSummary(null);
       try {
@@ -597,6 +599,7 @@ export default function RetroInfoInterface() {
         }
       } catch (error) {
         console.error("Error summarizing results:", error);
+        setAiSummary(`Sorry, an error occurred while generating the summary. Please try again. \n\n${GENERIC_ERROR_MESSAGE}`);
         toast({
           variant: "destructive",
           title: "Summarization Failed",
@@ -614,10 +617,10 @@ export default function RetroInfoInterface() {
                     <CardTitle>Advanced Search Results</CardTitle>
                     <CardDescription>Aggregated results from multiple search engines.</CardDescription>
                 </div>
-                <Dialog>
+                <Dialog open={isSummaryDialogOpen} onOpenChange={setIsSummaryDialogOpen}>
                     <DialogTrigger asChild>
                         <Button onClick={handleSummarize} disabled={isSummarizing}>
-                            {isSummarizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                            {isSummarizing && isSummaryDialogOpen ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                             Summarize with AI
                         </Button>
                     </DialogTrigger>
@@ -630,12 +633,16 @@ export default function RetroInfoInterface() {
                         </DialogHeader>
                         <ScrollArea className="flex-grow">
                             <div className="prose prose-invert prose-p:text-base prose-li:text-base prose-h2:text-xl prose-h3:text-lg whitespace-pre-wrap p-1">
-                                {aiSummary ? (
+                                {isSummarizing ? (
+                                    <div className="flex items-center justify-center h-full pt-10">
+                                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                        <p className="ml-4 text-muted-foreground">The AI is analyzing the results...</p>
+                                    </div>
+                                ) : aiSummary ? (
                                     <p>{aiSummary}</p>
                                 ) : (
-                                    <div className="flex items-center justify-center h-full">
-                                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                                        <p className="ml-4 text-muted-foreground">Generating summary...</p>
+                                    <div className="text-center pt-10 text-muted-foreground">
+                                        <p>The summary will appear here once generated.</p>
                                     </div>
                                 )}
                             </div>
@@ -672,9 +679,9 @@ export default function RetroInfoInterface() {
                     <TabsContent value="Images">
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 pt-4">
                             {allImageResults.map((item, index) => (
-                                <a key={`img-${index}-${item.engine}`} href={item.link} target="_blank" rel="noopener noreferrer" className="group block relative">
-                                    <div className="relative w-full" style={{ aspectRatio: '1080 / 1280' }}>
-                                        <Image src={item.thumbnail!} alt={item.title!} layout="fill" objectFit="cover" className="rounded-md group-hover:opacity-80 transition-opacity border-2 border-transparent group-hover:border-accent"/>
+                                <a key={`img-${index}-${item.engine}`} href={item.link || item.original} target="_blank" rel="noopener noreferrer" className="group block relative">
+                                    <div className="relative w-full">
+                                        <Image src={item.thumbnail!} alt={item.title!} layout="responsive" width={200} height={200} className="rounded-md object-cover group-hover:opacity-80 transition-opacity border-2 border-transparent group-hover:border-accent"/>
                                     </div>
                                     <p className="text-xs text-muted-foreground truncate mt-1 group-hover:text-accent">{item.title}</p>
                                     <span className="absolute top-1 left-1 text-xs text-white bg-black/60 px-1.5 py-0.5 rounded">{item.engine}</span>
