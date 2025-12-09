@@ -68,7 +68,7 @@ export default function AuthStatus() {
     );
 
     return () => {
-      authListener?.unsubscribe();
+      authListener?.subscription.unsubscribe();
     };
   }, [toast]); // supabase and supabaseConfigured are constant after initial load
 

@@ -96,6 +96,10 @@ export default function RetroInfoInterface() {
         },
         (error) => {
           console.warn(`Geolocation error: ${error.message}. Defaulting to India.`);
+          // Check if the error is due to network location provider failure, which might be a temporary issue or a CSP block.
+          if (error.code === error.POSITION_UNAVAILABLE) {
+            console.warn("Geolocation service failed, possibly due to network location provider. Using default.");
+          }
           setLocationData(DEFAULT_LOCATION_INDIA);
           setTimeout(() => {
              toast({
@@ -105,7 +109,8 @@ export default function RetroInfoInterface() {
                 duration: 7000,
              });
           }, 0);
-        }
+        },
+        { enableHighAccuracy: false, timeout: 5000, maximumAge: 0 } // Standard options
       );
     } else {
       console.warn("Geolocation is not supported by this browser. Defaulting to India.");
@@ -793,101 +798,114 @@ export default function RetroInfoInterface() {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                  <div className="md:col-span-2 space-y-8">
-                    {searchResult.answer && searchResult.answer.answer && (
-                      <Card className="border-accent shadow-lg shadow-accent/20">
-                        <CardHeader>
-                          <CardTitle className="text-2xl flex items-center gap-2"><Brain className="h-6 w-6 text-accent"/> AI Answer</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <p className="text-base leading-relaxed whitespace-pre-wrap">{searchResult.answer.answer}</p>
-                        </CardContent>
-                      </Card>
-                    )}
+                <Tabs defaultValue="search" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="search" disabled={!searchResult.answer?.answer && (!searchResult.searchResults?.webResults || searchResult.searchResults.webResults.length === 0)}>
+                      <ListTree className="mr-2 h-4 w-4"/>
+                      Search
+                    </TabsTrigger>
+                    <TabsTrigger value="images" disabled={fetchedImages.length === 0}>
+                      <ImageIcon className="mr-2 h-4 w-4"/>
+                      Images ({fetchedImages.length})
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="search" className="mt-4">
+                    <div className="space-y-8">
+                      {searchResult.answer && searchResult.answer.answer && (
+                        <Card className="border-accent shadow-lg shadow-accent/20">
+                          <CardHeader>
+                            <CardTitle className="text-2xl flex items-center gap-2"><Brain className="h-6 w-6 text-accent"/> AI Answer</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="text-base leading-relaxed whitespace-pre-wrap">{searchResult.answer.answer}</p>
+                          </CardContent>
+                        </Card>
+                      )}
 
-                    {searchResult.searchResults && searchResult.searchResults.webResults && searchResult.searchResults.webResults.length > 0 && (
-                      <Card className="border-primary shadow-lg shadow-primary/20">
-                        <CardHeader>
-                          <CardTitle className="text-2xl flex items-center gap-2"><ListTree className="h-6 w-6 text-accent"/> Search Results</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                          {searchResult.searchResults.webResults.map((item, index) => (
-                            <Card key={index} className="bg-card/50 border-border/50 hover:border-accent transition-colors duration-150">
-                              <CardContent className="pt-6">
-                                <div className="flex-grow">
-                                  <CardTitle className="text-lg mb-1">
-                                    <a
-                                      href={item.link}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-primary hover:text-accent hover:underline flex items-center gap-1 group"
-                                    >
-                                      {item.title}
-                                      <ExternalLink className="h-4 w-4 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
-                                    </a>
-                                  </CardTitle>
-                                  <CardDescription className="text-xs text-muted-foreground pt-1 break-all mb-2">{item.link}</CardDescription>
-                                  <p className="text-sm leading-relaxed mb-2">{item.snippet}</p>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </CardContent>
-                      </Card>
-                    )}
-                  </div>
-
-                  {fetchedImages.length > 0 && (
-                    <div className="md:col-span-1 space-y-8">
-                      <Card className="border-secondary shadow-lg shadow-secondary/20">
-                        <CardHeader>
-                          <CardTitle className="text-xl flex items-center gap-2">
-                            <ImageIcon className="h-5 w-5 text-accent"/> Images
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="grid grid-cols-2 gap-4">
-                            {fetchedImages.map((img, index) => {
-                              let hint = "image";
-                              const currentQuery = form.getValues("query").split(' ').slice(0, 2).join(' ') || "image query";
-
-                              if (img.imageUrl.includes('placehold.co')) {
-                                hint = currentQuery;
-                              } else if (img.altText && !img.altText.toLowerCase().startsWith('image related to') && !img.altText.toLowerCase().includes(currentQuery.toLowerCase())) {
-                                hint = img.altText.split(' ').slice(0, 2).join(' ');
-                              } else {
-                                hint = currentQuery;
-                              }
-                              hint = hint || "image"; 
-                              hint = hint.split(' ').slice(0, 2).join(' '); 
-
-                              return (
-                                <div key={index} className="group">
-                                  <a href={img.sourceUrl || '#'} target="_blank" rel="noopener noreferrer" className="block">
-                                    <div className="relative w-full">
-                                      <Image
-                                        src={img.imageUrl}
-                                        alt={img.altText || `Image ${index + 1} for ${form.getValues("query")}`}
-                                        layout="responsive"
-                                        width={500}
-                                        height={500}
-                                        className="rounded-md border border-border shadow-md group-hover:opacity-80 transition-opacity"
-                                        data-ai-hint={hint}
-                                        priority={index < 4}
-                                        sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
-                                      />
-                                    </div>
-                                  </a>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </CardContent>
-                      </Card>
+                      {searchResult.searchResults && searchResult.searchResults.webResults && searchResult.searchResults.webResults.length > 0 && (
+                        <Card className="border-primary shadow-lg shadow-primary/20">
+                          <CardHeader>
+                            <CardTitle className="text-2xl flex items-center gap-2"><ListTree className="h-6 w-6 text-accent"/> Search Results</CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-6">
+                            {searchResult.searchResults.webResults.map((item, index) => (
+                              <Card key={index} className="bg-card/50 border-border/50 hover:border-accent transition-colors duration-150">
+                                <CardContent className="pt-6">
+                                  <div className="flex-grow">
+                                    <CardTitle className="text-lg mb-1">
+                                      <a
+                                        href={item.link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-primary hover:text-accent hover:underline flex items-center gap-1 group"
+                                      >
+                                        {item.title}
+                                        <ExternalLink className="h-4 w-4 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
+                                      </a>
+                                    </CardTitle>
+                                    <CardDescription className="text-xs text-muted-foreground pt-1 break-all mb-2">{item.link}</CardDescription>
+                                    <p className="text-sm leading-relaxed mb-2">{item.snippet}</p>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </CardContent>
+                        </Card>
+                      )}
                     </div>
-                  )}
-                </div>
+                  </TabsContent>
+                  <TabsContent value="images" className="mt-4">
+                     {fetchedImages.length > 0 && (
+                      <div className="md:col-span-1 space-y-8">
+                        <Card className="border-secondary shadow-lg shadow-secondary/20">
+                          <CardHeader>
+                            <CardTitle className="text-xl flex items-center gap-2">
+                              <ImageIcon className="h-5 w-5 text-accent"/> Images
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                              {fetchedImages.map((img, index) => {
+                                let hint = "image";
+                                const currentQuery = form.getValues("query").split(' ').slice(0, 2).join(' ') || "image query";
+
+                                if (img.imageUrl.includes('placehold.co')) {
+                                  hint = currentQuery;
+                                } else if (img.altText && !img.altText.toLowerCase().startsWith('image related to') && !img.altText.toLowerCase().includes(currentQuery.toLowerCase())) {
+                                  hint = img.altText.split(' ').slice(0, 2).join(' ');
+                                } else {
+                                  hint = currentQuery;
+                                }
+                                hint = hint || "image"; 
+                                hint = hint.split(' ').slice(0, 2).join(' '); 
+
+                                return (
+                                  <div key={index} className="group">
+                                    <a href={img.sourceUrl || '#'} target="_blank" rel="noopener noreferrer" className="block">
+                                      <div className="relative w-full">
+                                        <Image
+                                          src={img.imageUrl}
+                                          alt={img.altText || `Image ${index + 1} for ${form.getValues("query")}`}
+                                          layout="responsive"
+                                          width={500}
+                                          height={500}
+                                          className="rounded-md border border-border shadow-md group-hover:opacity-80 transition-opacity"
+                                          data-ai-hint={hint}
+                                          priority={index < 4}
+                                          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+                                        />
+                                      </div>
+                                    </a>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
               )}
             </>
           )}
