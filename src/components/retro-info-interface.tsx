@@ -985,5 +985,3 @@ export default function RetroInfoInterface() {
     </div>
   );
 }
-
-    
