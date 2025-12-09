@@ -149,7 +149,7 @@ export default function RetroInfoInterface() {
     setTitleClickCount(newClickCount);
     if (newClickCount >= 2) {
       setRainbowModeActive(prev => !prev);
-      setTitleClickCount(0); 
+      setTitleClickCount(0);
     }
   };
 
