@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import AuthStatus from '@/components/AuthStatus';
 import Chatbot from '@/components/Chatbot';
 import { cn } from "@/lib/utils";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDistanceToNow } from 'date-fns';
 import type { PerformAdvancedSearchOutput } from "@/ai/tools/perform-advanced-search";
@@ -369,48 +369,47 @@ export default function RetroInfoInterface() {
         >
           <div className="relative flex-grow w-full">
             <Popover open={isPopoverOpen && !isHeader && recentSearches.length > 0} onOpenChange={setIsPopoverOpen}>
-              <PopoverTrigger asChild>
-                <div />
-              </PopoverTrigger>
-              <FormField
-                  control={form.control}
-                  name="query"
-                  render={({ field }) => (
-                  <FormItem className="w-full">
-                      {!isHeader && <FormLabel htmlFor="main-query-input" className="sr-only">Search Query</FormLabel>}
-                      <FormControl>
-                      <div className="relative">
-                          <Input
-                              id={isHeader ? "header-query-input" : "main-query-input"}
-                              placeholder="e.g., 'latest advancements in AI'"
-                              {...field}
-                              onChange={handleQueryInputChange}
-                              className={cn(
-                                  "text-base", 
-                                  isHeader ? "h-11 pr-10" : "h-12 bg-input placeholder:text-muted-foreground/80 border-secondary focus:border-accent"
-                              )}
-                              onFocus={() => setIsPopoverOpen(true && !isHeader && recentSearches.length > 0)}
-                              autoComplete="off"
-                          />
-                          {field.value && (
-                          <Button 
-                              type="button" 
-                              variant="ghost" 
-                              size="icon" 
-                              className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground"
-                              onClick={() => {form.setValue('query', ''); form.setFocus('query'); setIsPopoverOpen(true && !isHeader && recentSearches.length > 0);}}
-                          >
-                              <X className="h-4 w-4"/>
-                          </Button>
-                          )}
-                      </div>
-                      </FormControl>
-                      <FormMessage />
-                  </FormItem>
-                  )}
-              />
+                <PopoverAnchor asChild>
+                    <FormField
+                        control={form.control}
+                        name="query"
+                        render={({ field }) => (
+                        <FormItem className="w-full">
+                            {!isHeader && <FormLabel htmlFor="main-query-input" className="sr-only">Search Query</FormLabel>}
+                            <FormControl>
+                            <div className="relative">
+                                <Input
+                                    id={isHeader ? "header-query-input" : "main-query-input"}
+                                    placeholder="e.g., 'latest advancements in AI'"
+                                    {...field}
+                                    onChange={handleQueryInputChange}
+                                    className={cn(
+                                        "text-base", 
+                                        isHeader ? "h-11 pr-10" : "h-12 bg-input placeholder:text-muted-foreground/80 border-secondary focus:border-accent"
+                                    )}
+                                    onFocus={() => setIsPopoverOpen(true && !isHeader && recentSearches.length > 0)}
+                                    autoComplete="off"
+                                />
+                                {field.value && (
+                                <Button 
+                                    type="button" 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground"
+                                    onClick={() => {form.setValue('query', ''); form.setFocus('query'); setIsPopoverOpen(true && !isHeader && recentSearches.length > 0);}}
+                                >
+                                    <X className="h-4 w-4"/>
+                                </Button>
+                                )}
+                            </div>
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                </PopoverAnchor>
               {recentSearches.length > 0 && (
-                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" asChild>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
                     <div className="w-full">
                       <div className="flex flex-col gap-1 p-1">
                         <div className="flex items-center justify-between px-2 pt-1 pb-2">
@@ -939,7 +938,7 @@ export default function RetroInfoInterface() {
                             {article.description && <p className="text-sm leading-relaxed mt-2">{article.description}</p>}
                         </div>
                         </CardContent>
-                    </Card>
+                      </Card>
                     ))}
                 </CardContent>
               </Card>
