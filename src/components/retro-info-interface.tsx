@@ -20,7 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDistanceToNow } from 'date-fns';
 import type { PerformAdvancedSearchOutput } from "@/ai/tools/perform-advanced-search";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { ScrollArea } from "./ui/scroll-area";
 
 const formSchema = z.object({
@@ -145,12 +145,14 @@ export default function RetroInfoInterface() {
   });
 
   const handleTitleClick = () => {
-    const newClickCount = titleClickCount + 1;
-    setTitleClickCount(newClickCount);
-    if (newClickCount >= 2) {
-      setRainbowModeActive(prev => !prev);
-      setTitleClickCount(0);
-    }
+    setTitleClickCount(prev => {
+      const newClickCount = prev + 1;
+      if (newClickCount >= 2) {
+        setRainbowModeActive(prevMode => !prevMode);
+        return 0;
+      }
+      return newClickCount;
+    });
   };
 
   useEffect(() => {
