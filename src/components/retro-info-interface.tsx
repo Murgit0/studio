@@ -16,7 +16,6 @@ import { useToast } from "@/hooks/use-toast";
 import AuthStatus from '@/components/AuthStatus';
 import Chatbot from '@/components/Chatbot';
 import { cn } from "@/lib/utils";
-import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDistanceToNow } from 'date-fns';
 import type { PerformAdvancedSearchOutput } from "@/ai/tools/perform-advanced-search";
@@ -67,7 +66,6 @@ export default function RetroInfoInterface() {
   const [locationData, setLocationData] = useState<LocationData>(DEFAULT_LOCATION_INDIA); 
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 
   useEffect(() => {
     const userAgent = navigator.userAgent;
@@ -180,7 +178,6 @@ export default function RetroInfoInterface() {
     setIsLoading(true);
     setSearchResult(null);
     setCurrentView('search');
-    setIsPopoverOpen(false);
     
     addQueryToRecent(values.query);
 
@@ -230,7 +227,6 @@ export default function RetroInfoInterface() {
     setSearchResult(null);
     setAiSummary(null);
     setCurrentView('advanced-search');
-    setIsPopoverOpen(false);
 
     addQueryToRecent(values.query);
 
@@ -317,20 +313,9 @@ export default function RetroInfoInterface() {
 
   const handleRecentSearchClick = (searchTerm: string) => {
     form.setValue("query", searchTerm);
-    setIsPopoverOpen(false);
     form.handleSubmit(onSearchSubmit)();
   };
   
-  const handleQueryInputChange = (event: ChangeEvent<HTMLInputElement>) => {
-    form.setValue("query", event.target.value);
-    const value = event.target.value;
-    if (value.length > 0 && recentSearches.length > 0) {
-      setIsPopoverOpen(true);
-    } else {
-      setIsPopoverOpen(false);
-    }
-  };
-
   const handleClearHistory = () => {
     setRecentSearches([]);
     try {
@@ -368,80 +353,41 @@ export default function RetroInfoInterface() {
             )}
         >
           <div className="relative flex-grow w-full">
-            <Popover open={isPopoverOpen && !isHeader && recentSearches.length > 0} onOpenChange={setIsPopoverOpen}>
-                <PopoverAnchor asChild>
-                    <FormField
-                        control={form.control}
-                        name="query"
-                        render={({ field }) => (
-                        <FormItem className="w-full">
-                            {!isHeader && <FormLabel htmlFor="main-query-input" className="sr-only">Search Query</FormLabel>}
-                            <FormControl>
-                            <div className="relative">
-                                <Input
-                                    id={isHeader ? "header-query-input" : "main-query-input"}
-                                    placeholder="e.g., 'latest advancements in AI'"
-                                    {...field}
-                                    onChange={handleQueryInputChange}
-                                    className={cn(
-                                        "text-base", 
-                                        isHeader ? "h-11 pr-10" : "h-12 bg-input placeholder:text-muted-foreground/80 border-secondary focus:border-accent"
-                                    )}
-                                    onFocus={() => setIsPopoverOpen(true && !isHeader && recentSearches.length > 0)}
-                                    autoComplete="off"
-                                />
-                                {field.value && (
-                                <Button 
-                                    type="button" 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground"
-                                    onClick={() => {form.setValue('query', ''); form.setFocus('query'); setIsPopoverOpen(true && !isHeader && recentSearches.length > 0);}}
-                                >
-                                    <X className="h-4 w-4"/>
-                                </Button>
-                                )}
-                            </div>
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
+            <FormField
+                control={form.control}
+                name="query"
+                render={({ field }) => (
+                <FormItem className="w-full">
+                    {!isHeader && <FormLabel htmlFor="main-query-input" className="sr-only">Search Query</FormLabel>}
+                    <FormControl>
+                    <div className="relative">
+                        <Input
+                            id={isHeader ? "header-query-input" : "main-query-input"}
+                            placeholder="e.g., 'latest advancements in AI'"
+                            {...field}
+                            className={cn(
+                                "text-base", 
+                                isHeader ? "h-11 pr-10" : "h-12 bg-input placeholder:text-muted-foreground/80 border-secondary focus:border-accent"
+                            )}
+                            autoComplete="off"
+                        />
+                        {field.value && (
+                        <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="icon" 
+                            className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground"
+                            onClick={() => {form.setValue('query', ''); form.setFocus('query');}}
+                        >
+                            <X className="h-4 w-4"/>
+                        </Button>
                         )}
-                    />
-                </PopoverAnchor>
-              {recentSearches.length > 0 && (
-                  <PopoverContent className="w-[var(--radix-popper-anchor-width)] p-0">
-                    <div className="w-full">
-                      <div className="flex flex-col gap-1 p-1">
-                        <div className="flex items-center justify-between px-2 pt-1 pb-2">
-                          <span className="text-sm font-medium text-muted-foreground">Recent Searches</span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={handleClearHistory}
-                            title="Clear search history"
-                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Clear search history</span>
-                          </Button>
-                        </div>
-                        {recentSearches.map((searchTerm, index) => (
-                          <Button
-                            key={index}
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRecentSearchClick(searchTerm)}
-                            className="text-sm justify-start hover:bg-accent/10"
-                          >
-                            <History className="mr-2 h-4 w-4" />
-                            {searchTerm}
-                          </Button>
-                        ))}
-                      </div>
                     </div>
-                  </PopoverContent>
-              )}
-            </Popover>
+                    </FormControl>
+                    <FormMessage />
+                </FormItem>
+                )}
+            />
           </div>
           <div className={cn("flex gap-2", isHeader ? "flex-row" : "flex-col sm:flex-row mt-4")}>
             <Button 
