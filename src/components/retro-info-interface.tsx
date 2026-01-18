@@ -409,7 +409,7 @@ export default function RetroInfoInterface() {
                     />
                 </PopoverAnchor>
               {recentSearches.length > 0 && (
-                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+                  <PopoverContent className="w-[var(--radix-popper-anchor-width)] p-0">
                     <div className="w-full">
                       <div className="flex flex-col gap-1 p-1">
                         <div className="flex items-center justify-between px-2 pt-1 pb-2">
